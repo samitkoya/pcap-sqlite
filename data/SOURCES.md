@@ -1,0 +1,17 @@
+# Capture provenance and label limits
+
+All seven bundled files are original public packet captures, parsed locally with PyShark and TShark. The detector did not generate or assign their source labels. The two main captures remain at `data/normal.pcap` and `data/tunneling.pcap` for the approved course workflow; five additional tool captures are in `data/additional/`.
+
+| Capture | Source and original file | DNS questions observed with TShark | Source label | SHA-256 |
+| --- | --- | ---: | --- | --- |
+| `data/normal.pcap` | [Wireshark Sample Captures, dns.cap](https://wiki.wireshark.org/uploads/__moin_import__/attachments/SampleCaptures/dns.cap) | 19 | General DNS lookups; **not** independently certified benign | `041eeb6f98bb398f1ee8b09651b5b5a84f6a62639f95bf226f9e7b77355d9f28` |
+| `data/tunneling.pcap` | [Korving-F DNS tunnel dataset](https://github.com/Korving-F/dns-tunnel-dataset), DNSCAT C2 archive described below | 438 | Simulated DNSCAT C2 scenario, `example.attack` | `e70904823b97bfa733a9fd7d07bb3f34946167320191cef120d919b98a39dc35` |
+| `data/additional/tunneling_dns2tcp.pcap` | [dmachard, dns2tcp.pcap](https://github.com/dmachard/datasets-malicious-dns/blob/main/dns2tcp.pcap) | 22 | Tool-generated dns2tcp capture | `41a50974baa28c7731ed67a460d4e9bd9c0a6231c4ee660b2ee2ce798ab439aa` |
+| `data/additional/tunneling_dnscat2_12_queries.pcap` | [dmachard, dnscat2.pcap](https://github.com/dmachard/datasets-malicious-dns/blob/main/dnscat2.pcap) | 12 | Tool-generated dnscat2 capture | `904817d65b4bc9949bbb969b5be504faa2c4c41b2041ec3e005b6ee25a20fd45` |
+| `data/additional/tunneling_dnsextrator.pcap` | [dmachard, dnsextrator.pcap](https://github.com/dmachard/datasets-malicious-dns/blob/main/dnsextrator.pcap) | 14 | Tool-generated DNSExfiltrator capture | `ef30a9992a9a0c7562c11c5870848fa932c9633676a839d4ee2079e5c89da57d` |
+| `data/additional/tunneling_iodine.pcap` | [dmachard, iodine.pcap](https://github.com/dmachard/datasets-malicious-dns/blob/main/iodine.pcap) | 12 | Tool-generated iodine capture | `5d9eb84014c98b4f4b21374178172e45ecfa54c881c1e5a8bdfc719832f6ad8a` |
+| `data/additional/tunneling_sods.pcap` | [dmachard, sods.pcap](https://github.com/dmachard/datasets-malicious-dns/blob/main/sods.pcap) | 493 | Tool-generated sods capture | `68e5392dfbf7885eb3f5ed63a987cfe13a1056563f03a83b35c8c0ecf4f4b3b6` |
+
+The exact primary tunnel archive is [8c2ef973a2d27a2c4581f347aa196b5b_full_dataset.tar.gz](https://raw.githubusercontent.com/Korving-F/dns-tunnel-dataset/master/dns_tunnel_c2/8c2ef973a2d27a2c4581f347aa196b5b/8c2ef973a2d27a2c4581f347aa196b5b_full_dataset.tar.gz); the copied member is `8c2ef973a2d27a2c4581f347aa196b5b/bind9/dns.pcap`. Its accompanying scenario metadata and BIND log identify DNSCAT C2 activity involving `example.attack`. The [dmachard repository README](https://github.com/dmachard/datasets-malicious-dns) identifies the tools used to generate its five captures, but does not provide packet-level labels or a separate benign comparison set. These are controlled tool examples, not proof of live malicious incidents.
+
+The observed domain name in a capture is not by itself a ground-truth label. The general Wireshark capture cannot support a false-positive-rate claim. The tool captures can test whether these particular scenarios are flagged, but their small size and shared source cannot support a population-level accuracy claim. The iodine example is source-labeled tunnel traffic that the current detector does **not** flag at its default threshold.

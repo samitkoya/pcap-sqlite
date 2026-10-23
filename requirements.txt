@@ -1,0 +1,6 @@
+pyshark
+pandas
+scipy
+streamlit
+altair
+# sqlite3 is part of Python's standard library; it is not installed from PyPI.

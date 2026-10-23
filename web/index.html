@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>DNS Tunneling Detector</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="settings-panel" aria-label="Analysis settings">
+      <div class="sidebar-inner">
+        <h2 class="sidebar-title">Settings</h2>
+
+        <div class="control-group">
+          <label class="control-label" for="database-select">Capture database</label>
+          <select id="database-select" aria-describedby="source-note"></select>
+          <p class="source-note" id="source-note"></p>
+        </div>
+
+        <div class="control-group threshold-group">
+          <div class="control-heading">
+            <label class="control-label" for="threshold-input">Flag threshold</label>
+            <output id="threshold-value" for="threshold-input">2 / 4</output>
+          </div>
+          <input id="threshold-input" type="range" min="1" max="4" step="1" value="2">
+          <div class="range-labels" aria-hidden="true"><span>1</span><span>4</span></div>
+          <p class="control-hint">Domains scoring at or above this value are flagged.</p>
+        </div>
+
+        <section class="sidebar-rules" aria-labelledby="rules-heading">
+          <h3 id="rules-heading">Scoring rules</h3>
+          <ul>
+            <li><span>Average entropy</span><strong>&gt; 3.5</strong></li>
+            <li><span>Query count</span><strong>&gt; 20</strong></li>
+            <li><span>TXT / NULL ratio</span><strong>&gt; 30%</strong></li>
+            <li><span>Average query length</span><strong>&gt; 50</strong></li>
+          </ul>
+          <p>Each rule adds one point. Threshold changes affect this view only.</p>
+        </section>
+
+        <div class="sidebar-footnote">Local PCAP analysis<br>SQLite evidence remains unchanged</div>
+      </div>
+    </aside>
+
+    <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+
+    <main class="main-content">
+      <header class="page-header">
+        <div class="heading-wrap">
+          <button class="menu-button" id="menu-button" type="button" aria-label="Open settings" aria-controls="settings-panel" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+          <div>
+            <h1>DNS Tunneling Detector</h1>
+            <p>Rule-based analysis of DNS queries from local packet captures.</p>
+          </div>
+        </div>
+        <div class="source-meta"><span>DATABASE</span><strong id="source-file">Loading…</strong></div>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="Dashboard views">
+        <button class="tab is-active" id="tab-overview" role="tab" type="button" aria-controls="panel-overview" aria-selected="true">Overview</button>
+        <button class="tab" id="tab-detail" role="tab" type="button" aria-controls="panel-detail" aria-selected="false">Domain Detail</button>
+      </nav>
+
+      <div class="error-banner" id="error-banner" role="alert" hidden></div>
+
+      <section class="tab-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+        <div class="metric-strip" id="metric-strip" aria-label="Analysis summary"></div>
+
+        <div class="section-heading table-heading">
+          <div>
+            <h2>Ranked domains</h2>
+            <p>Ordered by suspicion score. Color marks domains that meet the current flag threshold.</p>
+          </div>
+          <div class="search-wrap">
+            <label class="visually-hidden" for="domain-search">Filter domains</label>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 5 5"/></svg>
+            <input id="domain-search" type="search" placeholder="Filter domains" autocomplete="off">
+          </div>
+        </div>
+        <div class="table-scroll" role="region" aria-label="Ranked domain table" tabindex="0">
+          <table class="data-table" id="ranking-table">
+            <thead><tr>
+              <th scope="col">Domain</th><th scope="col">Score</th><th scope="col">Status</th>
+              <th scope="col">Queries</th><th scope="col">Avg. entropy</th>
+              <th scope="col">Max. entropy</th><th scope="col">Avg. length</th>
+              <th scope="col">TXT / NULL</th>
+            </tr></thead>
+            <tbody id="ranking-body"></tbody>
+          </table>
+        </div>
+        <p class="empty-state" id="search-empty" hidden>No domains match that filter.</p>
+
+        <section class="entropy-section" aria-labelledby="entropy-heading">
+          <div class="section-heading"><div>
+            <h2 id="entropy-heading">Average subdomain entropy</h2>
+            <p>Top 20 domains by suspicion score · bits per character</p>
+          </div></div>
+          <div class="entropy-chart" id="entropy-chart" role="img" aria-label="Average subdomain entropy by domain"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="panel-detail" role="tabpanel" aria-labelledby="tab-detail" hidden>
+        <div class="detail-select-row">
+          <label class="control-label" for="domain-select">Select a domain</label>
+          <select id="domain-select"></select>
+        </div>
+        <div class="detail-heading">
+          <h2 id="detail-domain">—</h2>
+          <p class="detail-status" id="detail-status"></p>
+          <p class="detail-meta" id="detail-meta"></p>
+        </div>
+
+        <div class="table-scroll" role="region" aria-label="Rule breakdown" tabindex="0">
+          <table class="data-table rule-table">
+            <thead><tr><th scope="col">Feature</th><th scope="col">Observed</th><th scope="col">Rule</th><th scope="col">Triggered</th></tr></thead>
+            <tbody id="rules-body"></tbody>
+          </table>
+        </div>
+
+        <section class="timeline-section" aria-labelledby="timeline-heading">
+          <div class="section-heading"><div>
+            <h2 id="timeline-heading">Query frequency over time</h2>
+            <p id="timeline-description">Queries grouped by capture time</p>
+          </div></div>
+          <div class="timeline-frame">
+            <svg id="timeline-chart" viewBox="0 0 980 280" role="img" aria-label="DNS queries over capture time"></svg>
+            <p class="empty-state" id="timeline-empty" hidden>No valid timestamps for this domain.</p>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
