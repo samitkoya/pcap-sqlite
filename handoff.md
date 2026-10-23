@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-24. This file records observed progress for the next Codex chat; verify the working tree before relying on it.
 
-**PROJECT IMPLEMENTATION COMPLETE; GITHUB UPLOAD IN PROGRESS.** All seven ordered tasks and the final artifact checklist have been verified. Seven real PCAPs and their SQLite outputs are included. The standalone HTML/CSS/JavaScript dashboard is primary. Verify the process and filesystem before relying on any historical server note below.
+**PROJECT COMPLETE AND PUSHED TO GITHUB.** All seven ordered tasks and the final artifact checklist have been verified. Seven real PCAPs and their SQLite outputs are included. The standalone HTML/CSS/JavaScript dashboard is primary. Verify the process and filesystem before relying on any historical server note below.
 
 ## Decisions
 
@@ -25,11 +25,11 @@ Last updated: 2026-10-24. This file records observed progress for the next Codex
 
 ## Current coordination
 
-No agent is currently doing project work. The workspace is not a Git repository (`git status --short` returned `fatal: not a git repository`).
+No agent is currently doing project work. This workspace is now a Git repository on `main`, with `origin` set to `https://github.com/samitkoya/pcap-sqlite.git`.
 
 ## Next step
 
-No implementation task remains in the approved brief or the requested standalone UI. The current HTML dashboard URL is `http://127.0.0.1:8501`; if it is no longer serving, restart it with `.\.venv\Scripts\python.exe dashboard_server.py --port 8501`. If changes are requested, check current files and rerun the relevant capture, detector, or dashboard check. Preserve the ground-truth limits in `data/SOURCES.md` and `report.md`.
+No implementation task remains in the approved brief, added dataset work, or requested standalone UI. Start the local HTML dashboard with `.\.venv\Scripts\python.exe dashboard_server.py --port 8501` and open `http://127.0.0.1:8501`. If changes are requested, check current files and rerun the relevant capture, detector, or dashboard check. Preserve the ground-truth limits in `data/SOURCES.md` and `report.md`.
 
 Prior verified commands/results: Task 1 used `python --version`, `python -m pip show pyshark pandas scipy streamlit`, `where.exe tshark`, `.venv\Scripts\python.exe -m pip install pyshark`, portable TShark `--version`, and a PyShark `FileCapture('.task1/dns.cap', display_filter='dns', tshark_path=..., keep_packets=False)` with a new asyncio event loop; 38 packets were read. Task 2 used TShark `-Y 'dns.flags.response == 0' -T fields -e dns.qry.name` on the first pair of captures; exit 0, 19 and 12 queries respectively. The replacement tunneling capture was also verified with TShark at 438 queries. The first download using PowerShell `Invoke-WebRequest` failed; escalated `curl.exe` succeeded for the official sample and portable TShark package. The portable Wireshark package was extracted under `.task1/`.
 
@@ -84,3 +84,5 @@ The user requested many more datasets, a complete folder reorganization, and a p
 Moved the five additional PCAPs into `data/additional/`, their databases into `output/additional/`, and dashboard screenshots into `docs/screenshots/`; kept the required `data/normal.pcap`, `data/tunneling.pcap`, `output/normal.db`, and `output/tunneling.db` paths. Updated `dashboard_server.py` to expose all seven databases and `dashboard.py` to find databases recursively. Updated `README.md`, `report.md`, `prompt.md`, `.gitignore`, and `data/SOURCES.md` with commands, results, provenance, and label limits. `Get-FileHash -Algorithm SHA256` produced the hashes recorded in `data/SOURCES.md`.
 
 Verification: `.\.venv\Scripts\python.exe -m py_compile dns_feature_extractor.py detector.py dashboard.py dashboard_server.py` exited 0; `node --check web/app.js` exited 0. Direct SQLite checks found both tables with 22/1, 12/1, 14/1, 12/1, 493/1, 19/7, and 438/1 query/domain counts and `PRAGMA integrity_check` returned `ok` for all seven. Temporary server `dashboard_server.py --port 8502` returned seven IDs from `/api/databases`, and its iodine API returned 12 queries and score 1. Headless system Chrome via Playwright selected iodine and showed 12 queries, 0 flagged, 1/4 highest score, and no page errors. The temporary server was stopped with Ctrl+C. `git init -b main` succeeded; an escalated `git -c safe.directory='C:/Users/Samit Reddy/Desktop/ISL-Project' remote add origin https://github.com/samitkoya/pcap-sqlite.git` succeeded after sandbox ownership blocked plain `git remote add`. `git ls-remote ... HEAD` exited 0 with no output, indicating no remote HEAD. `gh` is unavailable. A source scan for common credential strings returned no matches. Next step: stage, commit, and push this verified project; then record observed remote results here and verify the final Git state.
+
+GitHub result: `git -c safe.directory='C:/Users/Samit Reddy/Desktop/ISL-Project' add .` staged the project while `.venv`, `.task1`, and `__pycache__` remained ignored. `git diff --cached --stat` listed the source, docs, seven PCAPs, seven SQLite databases, and screenshots. `git -c safe.directory='C:/Users/Samit Reddy/Desktop/ISL-Project' commit -m 'Complete DNS tunneling detector with seven PCAP datasets'` exited 0 and created root commit `47af9f3` with 36 files. A sandboxed `git push -u origin main` failed with a Schannel credentials error; the escalated `git -c safe.directory='C:/Users/Samit Reddy/Desktop/ISL-Project' push -u origin main` exited 0 and reported `main -> main`, with local `main` tracking `origin/main`. A final handoff update and remote verification follow in the next commit.
