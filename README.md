@@ -7,7 +7,7 @@ A four-day information security course project that turns real DNS packet captur
 ```text
 dns_feature_extractor.py   PCAP -> dns_queries and domain_summary in SQLite
 detector.py                Four-rule domain scoring and CLI
-dashboard_server.py        Read-only localhost API and HTML dashboard server
+dashboard_server.py        Localhost API, upload pipeline, and HTML server
 web/                       Standalone HTML, CSS, JavaScript, favicon
 data/normal.pcap            Required general DNS comparison capture
 data/tunneling.pcap         Required source-labeled DNSCAT C2 capture
@@ -24,6 +24,16 @@ report.md                  Course report
 
 The ten bundled PCAPs, SQLite databases, report image, and application code are included in this repository. The local `.venv/` and portable TShark copy are excluded; install TShark separately after cloning. Third-party capture provenance is in [data/SOURCES.md](data/SOURCES.md).
 
+```mermaid
+flowchart LR
+    A[Bundled or uploaded PCAP] --> B[PyShark + TShark]
+    B --> C[dns_feature_extractor.py]
+    C --> D[(SQLite: dns_queries + domain_summary)]
+    D --> E[detector.py: four rules]
+    E --> F[dashboard_server.py: localhost API]
+    F --> G[web/: Overview + Domain Detail]
+```
+
 ## Setup on Windows PowerShell
 
 Install Python 3.14 or a compatible Python 3 release and Wireshark with TShark. Make `tshark.exe` available on `PATH`, set `TSHARK_PATH`, or pass `--tshark` to the extraction command. From the repository root:
@@ -32,6 +42,7 @@ Install Python 3.14 or a compatible Python 3 release and Wireshark with TShark. 
 python -m venv .venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 & .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 tshark --version
 ```
@@ -105,4 +116,4 @@ node --check web/app.js
 python -m py_compile dns_feature_extractor.py detector.py dashboard_server.py
 ```
 
-The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.
+The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>&threshold=<1..4>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. Omitting `threshold` uses the detector's default of 2. The analysis response supplies rule values, score range, domain scores, and threshold-based flags; the browser only displays them. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.
