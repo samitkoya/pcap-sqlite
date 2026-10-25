@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#0b1018">
   <title>DNS Tunneling Detector</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
@@ -13,7 +13,11 @@
   <div class="app-shell">
     <aside class="sidebar" id="settings-panel" aria-label="Analysis settings">
       <div class="sidebar-inner">
-        <h2 class="sidebar-title">Settings</h2>
+        <div class="brand-lockup" aria-label="Packet Scope DNS analysis">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <div><strong>PACKET SCOPE</strong><span>DNS ANALYSIS</span></div>
+        </div>
+        <h2 class="sidebar-title">Workspace</h2>
 
         <div class="control-group">
           <label class="control-label" for="database-select">Capture database</label>
@@ -27,7 +31,7 @@
             <output id="threshold-value" for="threshold-input">2 / 4</output>
           </div>
           <input id="threshold-input" type="range" min="1" max="4" step="1" value="2">
-          <div class="range-labels" aria-hidden="true"><span>1</span><span>4</span></div>
+          <div class="range-labels" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
           <p class="control-hint">Domains scoring at or above this value are flagged.</p>
         </div>
 
@@ -42,7 +46,12 @@
           <p>Each rule adds one point. Threshold changes affect this view only.</p>
         </section>
 
-        <div class="sidebar-footnote">Local PCAP analysis<br>SQLite evidence remains unchanged</div>
+        <section class="sidebar-guide" aria-label="How to read the score">
+          <span class="eyebrow">READING THE SCORE</span>
+          <p>A flag is a prompt to investigate. It is not a verdict that a domain is malicious.</p>
+        </section>
+
+        <div class="sidebar-footnote"><span class="local-indicator"></span>Local capture analysis<br>Source labels are documented</div>
       </div>
     </aside>
 
@@ -55,8 +64,9 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
           </button>
           <div>
-            <h1>DNS Tunneling Detector</h1>
-            <p>Rule-based analysis of DNS queries from local packet captures.</p>
+            <span class="eyebrow page-kicker">NETWORK TELEMETRY / DNS</span>
+            <h1>DNS activity</h1>
+            <p>Review query patterns that may be consistent with DNS tunneling.</p>
           </div>
         </div>
         <div class="source-meta"><span>DATABASE</span><strong id="source-file">Loading…</strong></div>
@@ -70,6 +80,7 @@
       <div class="error-banner" id="error-banner" role="alert" hidden></div>
 
       <section class="tab-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+        <div class="reading-note"><span class="note-mark">i</span><p><strong>Screening, not a verdict.</strong> Scores summarize four fixed rules. Review the matched signals and capture source before drawing conclusions.</p></div>
         <div class="metric-strip" id="metric-strip" aria-label="Analysis summary"></div>
 
         <div class="section-heading table-heading">
@@ -122,6 +133,33 @@
             <tbody id="rules-body"></tbody>
           </table>
         </div>
+
+        <section class="query-trace-section" aria-labelledby="trace-heading">
+          <div class="section-heading trace-heading">
+            <div>
+              <h2 id="trace-heading">DNS query trace</h2>
+              <p>Choose a request to inspect its labels and how it contributes to domain-level rules.</p>
+            </div>
+            <label class="trace-search-wrap">
+              <span class="visually-hidden">Filter DNS queries</span>
+              <input id="trace-search" type="search" placeholder="Find in query names" autocomplete="off">
+            </label>
+          </div>
+          <div class="trace-domain-context" id="trace-domain-context" aria-label="Domain-wide rule results"></div>
+          <div class="query-trace-layout">
+            <div class="trace-console" role="list" id="trace-list" aria-label="DNS queries in capture" tabindex="0"></div>
+            <aside class="trace-inspector" id="query-inspector" aria-live="polite" aria-label="Selected query annotations"></aside>
+          </div>
+          <p class="trace-count" id="trace-count"></p>
+        </section>
+
+        <section class="type-section" aria-labelledby="type-heading">
+          <div class="section-heading"><div>
+            <h2 id="type-heading">Query type mix</h2>
+            <p>DNS request types seen for this domain</p>
+          </div></div>
+          <div class="type-mix" id="type-mix"></div>
+        </section>
 
         <section class="timeline-section" aria-labelledby="timeline-heading">
           <div class="section-heading"><div>

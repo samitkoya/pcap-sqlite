@@ -61,7 +61,8 @@ def analysis_payload(database_id: str) -> dict:
     with sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True) as connection:
         summary = pd.read_sql_query("SELECT * FROM domain_summary", connection)
         query_rows = connection.execute(
-            "SELECT base_domain, query_type, timestamp FROM dns_queries"
+            "SELECT query_name, base_domain, query_type, timestamp, query_len, subdomain_entropy "
+            "FROM dns_queries ORDER BY timestamp, rowid"
         ).fetchall()
 
     scored = score_domains(summary)
@@ -85,9 +86,17 @@ def analysis_payload(database_id: str) -> dict:
         })
 
     queries = [
-        {"base_domain": base_domain, "query_type": query_type,
-         "timestamp_ms": timestamp_ms(timestamp)}
-        for base_domain, query_type, timestamp in query_rows
+        {
+            "query_id": index,
+            "query_name": query_name,
+            "base_domain": base_domain,
+            "query_type": query_type,
+            "timestamp_ms": timestamp_ms(timestamp),
+            "query_len": int(query_len),
+            "subdomain_entropy": float(subdomain_entropy),
+        }
+        for index, (query_name, base_domain, query_type, timestamp, query_len, subdomain_entropy)
+        in enumerate(query_rows)
     ]
     return {
         "database": database_id,

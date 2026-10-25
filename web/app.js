@@ -5,6 +5,8 @@ const state = {
   threshold: 2,
   selectedDomain: null,
   filter: "",
+  traceFilter: "",
+  selectedQueryId: null,
   tab: "overview",
   requestNumber: 0,
 };
@@ -138,7 +140,7 @@ function renderEntropyChart() {
     const name = node("span", "bar-name", domain.base_domain);
     name.title = domain.base_domain;
     const track = node("div", "bar-track");
-    const fill = node("span", "bar-fill");
+    const fill = node("span", `bar-fill${isFlagged(domain) ? " is-flagged" : ""}`);
     fill.style.width = `${Math.max(0, Math.min(100, domain.avg_entropy / maximum * 100))}%`;
     track.append(fill);
     row.append(name, track, node("strong", "bar-value", decimal(domain.avg_entropy)));
@@ -165,6 +167,152 @@ function renderRules(domain) {
     row.append(node("td", hit ? "is-hit" : "", hit ? "+1 point" : "0 points"));
     body.append(row);
   }
+}
+
+function renderQueryMix(domain) {
+  const mix = new Map();
+  for (const query of state.analysis.queries) {
+    if (query.base_domain !== domain.base_domain) continue;
+    const type = query.query_type || "Unknown";
+    mix.set(type, (mix.get(type) || 0) + 1);
+  }
+  const container = $("type-mix");
+  container.replaceChildren();
+  const entries = [...mix.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (!entries.length) {
+    container.append(node("p", "empty-state", "No query type data is available."));
+    return;
+  }
+  for (const [type, count] of entries) {
+    const chip = node("div", "type-chip");
+    chip.append(node("span", "", type), node("strong", "", number(count)));
+    chip.title = `${count} ${type} queries`;
+    container.append(chip);
+  }
+}
+
+function renderTraceDomainContext(domain) {
+  const container = $("trace-domain-context");
+  container.replaceChildren();
+  const heading = node("div", "trace-context-heading");
+  heading.append(node("span", "eyebrow", "DOMAIN-WIDE RULE RESULTS"));
+  heading.append(node("p", "", `Calculated across all ${number(domain.query_count)} requests to ${domain.base_domain}.`));
+  container.append(heading);
+
+  const rules = state.analysis.rules;
+  const items = [
+    ["Avg. subdomain entropy", `${decimal(domain.avg_entropy)} bits`, `rule > ${rules.avg_entropy}`, domain.rule_hits.avg_entropy],
+    ["Query count", number(domain.query_count), `rule > ${rules.query_count}`, domain.rule_hits.query_count],
+    ["TXT / NULL share", percent(domain.txt_null_ratio), `rule > ${Math.round(rules.txt_null_ratio * 100)}%`, domain.rule_hits.txt_null_ratio],
+    ["Avg. query length", `${decimal(domain.avg_query_len, 1)} chars`, `rule > ${rules.avg_query_len}`, domain.rule_hits.avg_query_len],
+  ];
+  const grid = node("div", "trace-context-grid");
+  for (const [label, value, threshold, hit] of items) {
+    const item = node("div", `trace-context-item${hit ? " is-hit" : ""}`);
+    const top = node("div", "trace-context-top");
+    top.append(node("strong", "", label), node("span", "trace-context-status", hit ? "HIT" : "BELOW"));
+    item.append(top);
+    const reading = node("div", "trace-context-reading");
+    reading.append(node("strong", "", value), node("span", "", threshold));
+    item.append(reading);
+    grid.append(item);
+  }
+  container.append(grid);
+}
+
+function appendQueryName(target, query, baseDomain) {
+  const labels = String(query.query_name || "").replace(/\.$/, "").split(".");
+  const baseLabels = String(baseDomain || "").toLowerCase().split(".");
+  const lowerLabels = labels.map((label) => label.toLowerCase());
+  const hasBaseSuffix = baseLabels.length > 0 && baseLabels.every((label, index) =>
+    lowerLabels[lowerLabels.length - baseLabels.length + index] === label
+  );
+  const splitAt = hasBaseSuffix ? labels.length - baseLabels.length : labels.length;
+  labels.forEach((label, index) => {
+    if (index) target.append(document.createTextNode("."));
+    const part = node("span", index < splitAt ? "query-name-subdomain" : "query-name-base", label);
+    target.append(part);
+  });
+}
+
+function renderQueryInspector(query, domain) {
+  const inspector = $("query-inspector");
+  inspector.replaceChildren();
+  if (!query) {
+    inspector.append(node("p", "inspector-empty", "No requests match this filter."));
+    return;
+  }
+
+  inspector.append(node("span", "eyebrow", "SELECTED QUERY"));
+  const name = node("div", "inspector-query-name");
+  appendQueryName(name, query, domain.base_domain);
+  inspector.append(name);
+
+  const facts = node("div", "query-facts");
+  const time = Number.isFinite(query.timestamp_ms)
+    ? new Date(query.timestamp_ms).toISOString().slice(11, 19) + " UTC" : "Time unavailable";
+  for (const [label, value] of [["Capture time", time], ["Type", query.query_type || "Unknown"], ["Length", `${query.query_len} chars`], ["Query entropy", `${decimal(query.subdomain_entropy)} bits`]]) {
+    const fact = node("div", "query-fact");
+    fact.append(node("span", "", label), node("strong", "", value));
+    facts.append(fact);
+  }
+  inspector.append(facts);
+  inspector.append(node("span", "eyebrow annotation-title", "HOW THIS QUERY CONTRIBUTES"));
+
+  const context = node("div", "annotation-list");
+  const isTxtNull = ["TXT", "NULL"].includes(String(query.query_type).toUpperCase());
+  const annotations = [
+    ["Entropy", `This query's ${decimal(query.subdomain_entropy)}-bit subdomain entropy is included in the domain average of ${decimal(domain.avg_entropy)} bits.`],
+    ["Length", `This ${query.query_len}-character name is included in the domain's average query length of ${decimal(domain.avg_query_len, 1)} characters.`],
+    ["Query count", `This query adds 1 to the domain total of ${number(domain.query_count)} requests.`],
+    ["TXT / NULL", `${isTxtNull ? "This query adds to" : "This query does not add to"} the TXT / NULL share, which is ${percent(domain.txt_null_ratio)} across the domain.`],
+  ];
+  for (const [label, description] of annotations) {
+    const item = node("div", "annotation-item");
+    item.append(node("strong", "annotation-label", label));
+    item.append(node("span", "annotation-description", description));
+    context.append(item);
+  }
+  inspector.append(context);
+}
+
+function renderQueryTrace(domain) {
+  renderTraceDomainContext(domain);
+  const allQueries = state.analysis.queries
+    .filter((query) => query.base_domain === domain.base_domain)
+    .sort((a, b) => (a.timestamp_ms ?? 0) - (b.timestamp_ms ?? 0));
+  const visibleQueries = allQueries.filter((query) =>
+    `${query.query_name} ${query.query_type}`.toLowerCase().includes(state.traceFilter)
+  );
+  const list = $("trace-list");
+  list.replaceChildren();
+  const selected = visibleQueries.find((query) => query.query_id === state.selectedQueryId) || visibleQueries[0] || null;
+  state.selectedQueryId = selected?.query_id ?? null;
+
+  for (const query of visibleQueries) {
+    const selectedRow = query.query_id === state.selectedQueryId;
+    const row = node("button", `trace-row${selectedRow ? " is-selected" : ""}`);
+    row.type = "button";
+    row.setAttribute("role", "listitem");
+    const time = Number.isFinite(query.timestamp_ms)
+      ? new Date(query.timestamp_ms).toISOString().slice(11, 19) : "--:--:--";
+    row.append(node("span", "trace-time", time));
+    row.append(node("span", "trace-type", query.query_type || "?") );
+    const name = node("span", "trace-query-name");
+    appendQueryName(name, query, domain.base_domain);
+    row.append(name);
+    row.setAttribute("aria-pressed", String(selectedRow));
+    row.addEventListener("click", () => {
+      state.selectedQueryId = query.query_id;
+      renderQueryTrace(domain);
+    });
+    list.append(row);
+  }
+
+  $("trace-count").textContent = state.traceFilter
+    ? `Showing ${number(visibleQueries.length)} of ${number(allQueries.length)} requests`
+    : `${number(allQueries.length)} requests · ordered by capture time`;
+  renderQueryInspector(selected, domain);
 }
 
 function captureTime(milliseconds) {
@@ -243,6 +391,8 @@ function renderDetail() {
   $("detail-status").textContent = `${flagged ? "Flagged for review" : "Below threshold"} · Score ${domain.suspicion_score} / 4`;
   $("detail-meta").textContent = `Maximum entropy: ${decimal(domain.max_entropy)} · Unique query types: ${number(domain.unique_query_types)}`;
   renderRules(domain);
+  renderQueryTrace(domain);
+  renderQueryMix(domain);
   renderTimeline(domain);
 }
 
@@ -273,6 +423,9 @@ async function loadAnalysis(databaseId) {
     if (!response.ok) throw new Error(payload.error || "Could not load the analysis.");
     if (requestNumber !== state.requestNumber) return;
     state.analysis = payload;
+    state.selectedQueryId = null;
+    state.traceFilter = "";
+    $("trace-search").value = "";
     state.selectedDomain = payload.domains.some((domain) => domain.base_domain === state.selectedDomain)
       ? state.selectedDomain : payload.domains[0]?.base_domain || null;
     const select = $("domain-select");
@@ -324,7 +477,13 @@ $("domain-search").addEventListener("input", (event) => {
 });
 $("domain-select").addEventListener("change", (event) => {
   state.selectedDomain = event.target.value;
+  state.selectedQueryId = null;
   renderDetail();
+});
+$("trace-search").addEventListener("input", (event) => {
+  state.traceFilter = event.target.value.trim().toLowerCase();
+  const domain = state.analysis?.domains.find((item) => item.base_domain === state.selectedDomain);
+  if (domain) renderQueryTrace(domain);
 });
 $("menu-button").addEventListener("click", () => {
   const open = !$("settings-panel").classList.contains("is-open");
