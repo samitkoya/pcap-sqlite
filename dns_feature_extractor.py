@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import math
+import logging
 import os
 import shutil
 import sqlite3
@@ -24,6 +25,7 @@ QUERY_TYPES = {
     "35": "NAPTR", "41": "OPT", "43": "DS", "46": "RRSIG",
     "48": "DNSKEY", "255": "ANY",
 }
+LOG = logging.getLogger(__name__)
 
 
 def shannon_entropy(value: str) -> float:
@@ -60,6 +62,11 @@ def resolve_tshark_path(tshark_path: str | None = None) -> str | None:
 
 def parse_pcap(filepath: str, tshark_path: str | None = None) -> pd.DataFrame:
     """Read DNS questions; random labels and unusually long names are common tunnel signals."""
+    if not Path(filepath).is_file():
+        raise FileNotFoundError(f"Capture does not exist: {filepath}")
+    resolved_tshark = resolve_tshark_path(tshark_path)
+    if not resolved_tshark or not Path(resolved_tshark).is_file():
+        raise FileNotFoundError("TShark is unavailable; install it, set TSHARK_PATH, or pass --tshark")
     # Python 3.14 no longer creates a default event loop automatically.
     try:
         asyncio.get_event_loop()
@@ -67,10 +74,11 @@ def parse_pcap(filepath: str, tshark_path: str | None = None) -> pd.DataFrame:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
     capture = pyshark.FileCapture(
-        filepath, display_filter="dns", tshark_path=resolve_tshark_path(tshark_path),
+        filepath, display_filter="dns", tshark_path=resolved_tshark,
         keep_packets=False,
     )
     rows = []
+    skipped_malformed = 0
     try:
         for packet in capture:
             try:
@@ -91,9 +99,12 @@ def parse_pcap(filepath: str, tshark_path: str | None = None) -> pd.DataFrame:
                 })
             except Exception:
                 # A malformed or incomplete packet should not discard the rest of the capture.
+                skipped_malformed += 1
                 continue
     finally:
         capture.close()
+    if skipped_malformed:
+        LOG.warning("Skipped %d malformed DNS packets in %s", skipped_malformed, filepath)
     return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
 
@@ -124,6 +135,8 @@ def save_to_sqlite(df: pd.DataFrame, agg_df: pd.DataFrame,
         with connection:
             df.to_sql("dns_queries", connection, if_exists="replace", index=False)
             agg_df.to_sql("domain_summary", connection, if_exists="replace", index=False)
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_dns_queries_timestamp ON dns_queries(timestamp)")
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_dns_queries_domain_time ON dns_queries(base_domain, timestamp)")
 
 
 def main() -> None:
@@ -132,7 +145,10 @@ def main() -> None:
     parser.add_argument("--db", default="dns_analysis.db", help="Output SQLite database")
     parser.add_argument("--tshark", help="Optional path to tshark.exe (or set TSHARK_PATH)")
     args = parser.parse_args()
-    queries = parse_pcap(args.pcap, args.tshark)
+    try:
+        queries = parse_pcap(args.pcap, args.tshark)
+    except FileNotFoundError as exc:
+        parser.error(str(exc))
     summary = aggregate_by_domain(queries)
     save_to_sqlite(queries, summary, args.db)
     print(f"Saved {len(queries)} DNS queries across {len(summary)} domains to {args.db}")

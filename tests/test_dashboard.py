@@ -22,6 +22,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(tunnel["domains"][0]["base_domain"], "example.attack")
         self.assertEqual(tunnel["domains"][0]["suspicion_score"], 4)
         self.assertEqual(tunnel["flagged_count"], 1)
+        self.assertEqual((tunnel["domain_count"], tunnel["highest_score"]), (1, 4))
+        self.assertEqual(tunnel["domains"][0]["review_tone"], "high")
         self.assertEqual(analysis_payload("tunneling", 4)["flag_threshold"], 4)
         self.assertEqual(analysis_payload("normal", 1)["flagged_count"], 0)
 
@@ -33,7 +35,9 @@ class DashboardTests(unittest.TestCase):
         try:
             with urlopen(f"{base}/api/health") as response:
                 self.assertEqual(response.status, 200)
-                self.assertEqual(json.load(response)["status"], "ok")
+                health = json.load(response)
+                self.assertEqual(health["status"], "ok")
+                self.assertEqual(health["upload_max_bytes"], 25 * 1024 * 1024)
                 self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
             with urlopen(f"{base}/api/analysis?db=normal") as response:
                 self.assertEqual(json.load(response)["query_count"], 19)
@@ -53,6 +57,12 @@ class DashboardTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 urlopen(f"{base}/handoff.md")
             self.assertEqual(error.exception.code, 404)
+            error.exception.close()
+            request = Request(f"{base}/api/databases", headers={"Host": "not-local.example"})
+            with self.assertRaises(HTTPError) as error:
+                urlopen(request)
+            self.assertEqual(error.exception.code, 403)
+            self.assertEqual(json.load(error.exception)["code"], "invalid_host")
             error.exception.close()
         finally:
             server.shutdown()

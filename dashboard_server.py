@@ -126,6 +126,8 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
             "txt_null_ratio": float(row.txt_null_ratio),
             "suspicion_score": int(row.suspicion_score),
             "flagged": bool(row.suspicion_score >= flag_threshold),
+            "review_tone": ("high" if row.suspicion_score >= min(MAX_SCORE, FLAG_SCORE_THRESHOLD + 1)
+                            else "medium") if row.suspicion_score >= flag_threshold else "none",
             "rule_hits": {
                 "avg_entropy": bool(row.avg_entropy > ENTROPY_THRESHOLD),
                 "query_count": bool(row.query_count > QUERY_COUNT_THRESHOLD),
@@ -152,6 +154,8 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
         "filename": label,
         "source_note": source_note,
         "query_count": len(queries),
+        "domain_count": len(domains),
+        "highest_score": max((domain["suspicion_score"] for domain in domains), default=0),
         "flagged_count": sum(domain["flagged"] for domain in domains),
         "flag_threshold": flag_threshold,
         "default_flag_threshold": FLAG_SCORE_THRESHOLD,
@@ -184,11 +188,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def valid_host(self) -> bool:
+        """Reject DNS rebinding names for this localhost-only tool."""
+        allowed = {f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"}
+        if self.headers.get("Host") in allowed:
+            return True
+        self.send_json({"error": "Use the local dashboard address", "code": "invalid_host"}, status=403)
+        return False
+
     def do_GET(self):
+        if not self.valid_host():
+            return
         request = urlsplit(self.path)
         if request.path == "/api/health":
             self.send_json({"status": "ok", "available_databases": len(available_databases()),
-                            "tshark_available": bool(resolve_tshark_path() and Path(resolve_tshark_path()).is_file())})
+                            "tshark_available": bool(resolve_tshark_path() and Path(resolve_tshark_path()).is_file()),
+                            "upload_max_bytes": MAX_UPLOAD_BYTES,
+                            "upload_extensions": [".pcap", ".pcapng", ".cap"]})
             return
         if request.path == "/api/databases":
             self.send_json([
@@ -224,6 +240,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        if not self.valid_host():
+            return
         if urlsplit(self.path).path != "/api/upload":
             self.send_json({"error": "Unknown endpoint", "code": "not_found"}, status=404)
             return
@@ -236,7 +254,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         filename = Path(unquote(self.headers.get("X-Filename", "")).replace("\\", "/")).name
         suffix = Path(filename).suffix.lower()
-        if not filename or suffix not in {".pcap", ".pcapng", ".cap"}:
+        if not filename or len(filename) > 255 or suffix not in {".pcap", ".pcapng", ".cap"}:
             self.send_json({"error": "Choose a .pcap, .pcapng, or .cap file", "code": "invalid_file"}, status=400)
             return
         tshark = resolve_tshark_path()

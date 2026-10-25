@@ -9,6 +9,7 @@ const state = {
   selectedQueryId: null,
   tab: "overview",
   requestNumber: 0,
+  uploadMaxBytes: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -100,12 +101,11 @@ function setTab(tab) {
 }
 
 function renderMetrics() {
-  const domains = state.analysis.domains;
   const values = [
     ["DNS queries", number(state.analysis.query_count), false],
-    ["Domains analyzed", number(domains.length), false],
+    ["Domains analyzed", number(state.analysis.domain_count), false],
     ["Flagged domains", number(state.analysis.flagged_count), state.analysis.flagged_count > 0],
-    ["Highest suspicion score", `${Math.max(0, ...domains.map((d) => d.suspicion_score))} / ${state.analysis.max_score}`, false],
+    ["Highest suspicion score", `${state.analysis.highest_score} / ${state.analysis.max_score}`, false],
   ];
   const strip = $("metric-strip");
   strip.replaceChildren();
@@ -127,10 +127,8 @@ function renderRanking() {
 
   for (const domain of visible) {
     const flagged = isFlagged(domain);
-    const row = node("tr", flagged ? (domain.suspicion_score >= 3 ? "risk-high" : "risk-medium") : "");
+    const row = node("tr", flagged ? `risk-${domain.review_tone}` : "");
     row.dataset.domain = domain.base_domain;
-    row.tabIndex = 0;
-    row.title = `Open details for ${domain.base_domain}`;
     const cells = [
       domain.base_domain,
       `${domain.suspicion_score} / ${state.analysis.max_score}`,
@@ -142,7 +140,16 @@ function renderRanking() {
       percent(domain.txt_null_ratio),
     ];
     for (const [index, value] of cells.entries()) {
-      row.append(node("td", index === 2 ? "status" : "", value));
+      const cell = node("td", index === 2 ? "status" : "");
+      if (index === 0) {
+        const button = node("button", "domain-link", value);
+        button.type = "button";
+        button.setAttribute("aria-label", `Open details for ${value}`);
+        cell.append(button);
+      } else {
+        cell.textContent = value;
+      }
+      row.append(cell);
     }
     const open = () => {
       state.selectedDomain = domain.base_domain;
@@ -152,12 +159,6 @@ function renderRanking() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     };
     row.addEventListener("click", open);
-    row.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        open();
-      }
-    });
     body.append(row);
   }
 }
@@ -448,6 +449,8 @@ function closeSidebar() {
   $("settings-panel").classList.remove("is-open");
   $("sidebar-scrim").hidden = true;
   $("menu-button").setAttribute("aria-expanded", "false");
+  $("main-content").inert = false;
+  $("settings-panel").inert = window.matchMedia("(max-width: 760px)").matches;
   if (wasOpen && window.matchMedia("(max-width: 760px)").matches) $("menu-button").focus();
 }
 
@@ -488,8 +491,17 @@ async function loadAnalysis(databaseId, threshold = state.threshold) {
 
 async function start() {
   try {
-    const response = await fetch("/api/databases");
+    const [response, healthResponse] = await Promise.all([fetch("/api/databases"), fetch("/api/health")]);
     if (!response.ok) throw new Error("Could not list the SQLite databases.");
+    if (!healthResponse.ok) throw new Error("Could not read the local extractor status.");
+    const health = await healthResponse.json();
+    state.uploadMaxBytes = health.upload_max_bytes;
+    $("pcap-file").accept = health.upload_extensions.join(",");
+    $("upload-hint").textContent = health.tshark_available
+      ? `Local files up to ${Math.round(health.upload_max_bytes / 1024 / 1024)} MiB. Saved under data/uploads and output/uploads.`
+      : "TShark is unavailable. Install it or set TSHARK_PATH to analyze new captures.";
+    $("pcap-file").disabled = !health.tshark_available;
+    $("upload-button").disabled = !health.tshark_available;
     const databases = await response.json();
     if (!databases.length) throw new Error("No extracted SQLite databases found. Run dns_feature_extractor.py first.");
     const select = $("database-select");
@@ -527,6 +539,11 @@ $("upload-form").addEventListener("submit", async (event) => {
   if (!file) return;
   const status = $("upload-status");
   const button = $("upload-button");
+  if (file.size > state.uploadMaxBytes) {
+    status.classList.add("is-error");
+    status.textContent = "This capture exceeds the local upload limit. Use the extraction CLI for a larger file.";
+    return;
+  }
   status.classList.remove("is-error");
   status.textContent = "Extracting DNS queries…";
   button.disabled = true;
@@ -581,11 +598,15 @@ $("menu-button").addEventListener("click", () => {
   $("settings-panel").classList.toggle("is-open", open);
   $("sidebar-scrim").hidden = !open;
   $("menu-button").setAttribute("aria-expanded", String(open));
+  $("main-content").inert = open;
+  $("settings-panel").inert = !open;
   if (open) $("database-select").focus();
 });
 $("sidebar-scrim").addEventListener("click", closeSidebar);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeSidebar();
 });
+window.matchMedia("(max-width: 760px)").addEventListener("change", closeSidebar);
+closeSidebar();
 
 start();

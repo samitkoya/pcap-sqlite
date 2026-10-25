@@ -10,3 +10,5 @@ __pycache__/
 Thumbs.db
 data/uploads/
 output/uploads/
+.coverage
+htmlcov/
