@@ -2,7 +2,7 @@
 
 const state = {
   analysis: null,
-  threshold: 2,
+  threshold: null,
   selectedDomain: null,
   filter: "",
   traceFilter: "",
@@ -38,17 +38,53 @@ function sortedDomains() {
 }
 
 function isFlagged(domain) {
-  return domain.suspicion_score >= state.threshold;
+  return domain.flagged;
+}
+
+function renderThresholdControls() {
+  const analysis = state.analysis;
+  const slider = $("threshold-input");
+  slider.max = String(analysis.max_score);
+  slider.value = String(analysis.flag_threshold);
+  slider.disabled = false;
+  $("threshold-value").textContent = `${analysis.flag_threshold} / ${analysis.max_score}`;
+  const labels = $("range-labels");
+  labels.replaceChildren();
+  for (let value = 1; value <= analysis.max_score; value++) labels.append(node("span", "", String(value)));
+
+  const rules = analysis.rules;
+  const definitions = [
+    ["Average entropy", `> ${rules.avg_entropy}`],
+    ["Query count", `> ${rules.query_count}`],
+    ["TXT / NULL ratio", `> ${Math.round(rules.txt_null_ratio * 100)}%`],
+    ["Average query length", `> ${rules.avg_query_len}`],
+  ];
+  const list = $("sidebar-rule-list");
+  list.replaceChildren();
+  for (const [label, threshold] of definitions) {
+    const item = node("li");
+    item.append(node("span", "", label), node("strong", "", threshold));
+    list.append(item);
+  }
 }
 
 function showError(message) {
   $("error-banner").textContent = message;
   $("error-banner").hidden = false;
+  $("retry-button").hidden = false;
 }
 
 function clearError() {
   $("error-banner").hidden = true;
   $("error-banner").textContent = "";
+  $("retry-button").hidden = true;
+}
+
+function setLoading(loading) {
+  $("loading-banner").hidden = !loading;
+  $("database-select").disabled = loading;
+  $("panel-overview").setAttribute("aria-busy", String(loading));
+  $("panel-detail").setAttribute("aria-busy", String(loading));
 }
 
 function setTab(tab) {
@@ -68,8 +104,8 @@ function renderMetrics() {
   const values = [
     ["DNS queries", number(state.analysis.query_count), false],
     ["Domains analyzed", number(domains.length), false],
-    ["Flagged domains", number(domains.filter(isFlagged).length), domains.some(isFlagged)],
-    ["Highest suspicion score", `${Math.max(0, ...domains.map((d) => d.suspicion_score))} / 4`, false],
+    ["Flagged domains", number(state.analysis.flagged_count), state.analysis.flagged_count > 0],
+    ["Highest suspicion score", `${Math.max(0, ...domains.map((d) => d.suspicion_score))} / ${state.analysis.max_score}`, false],
   ];
   const strip = $("metric-strip");
   strip.replaceChildren();
@@ -97,7 +133,7 @@ function renderRanking() {
     row.title = `Open details for ${domain.base_domain}`;
     const cells = [
       domain.base_domain,
-      `${domain.suspicion_score} / 4`,
+      `${domain.suspicion_score} / ${state.analysis.max_score}`,
       flagged ? "Flagged" : "Below threshold",
       number(domain.query_count),
       decimal(domain.avg_entropy),
@@ -388,7 +424,7 @@ function renderDetail() {
   $("detail-domain").textContent = domain.base_domain;
   const flagged = isFlagged(domain);
   $("detail-status").className = `detail-status ${flagged ? "is-risk" : "is-clear"}`;
-  $("detail-status").textContent = `${flagged ? "Flagged for review" : "Below threshold"} · Score ${domain.suspicion_score} / 4`;
+  $("detail-status").textContent = `${flagged ? "Flagged for review" : "Below threshold"} · Score ${domain.suspicion_score} / ${state.analysis.max_score}`;
   $("detail-meta").textContent = `Maximum entropy: ${decimal(domain.max_entropy)} · Unique query types: ${number(domain.unique_query_types)}`;
   renderRules(domain);
   renderQueryTrace(domain);
@@ -400,7 +436,7 @@ function render() {
   if (!state.analysis) return;
   $("source-file").textContent = state.analysis.filename;
   $("source-note").textContent = state.analysis.source_note;
-  $("threshold-value").textContent = `${state.threshold} / 4`;
+  renderThresholdControls();
   renderMetrics();
   renderRanking();
   renderEntropyChart();
@@ -408,21 +444,27 @@ function render() {
 }
 
 function closeSidebar() {
+  const wasOpen = $("settings-panel").classList.contains("is-open");
   $("settings-panel").classList.remove("is-open");
   $("sidebar-scrim").hidden = true;
   $("menu-button").setAttribute("aria-expanded", "false");
+  if (wasOpen && window.matchMedia("(max-width: 760px)").matches) $("menu-button").focus();
 }
 
-async function loadAnalysis(databaseId) {
+async function loadAnalysis(databaseId, threshold = state.threshold) {
   const requestNumber = ++state.requestNumber;
   clearError();
+  setLoading(true);
   $("source-file").textContent = "Loading…";
   try {
-    const response = await fetch(`/api/analysis?db=${encodeURIComponent(databaseId)}`);
+    const parameters = new URLSearchParams({ db: databaseId });
+    if (threshold !== null) parameters.set("threshold", String(threshold));
+    const response = await fetch(`/api/analysis?${parameters}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Could not load the analysis.");
     if (requestNumber !== state.requestNumber) return;
     state.analysis = payload;
+    state.threshold = payload.flag_threshold;
     state.selectedQueryId = null;
     state.traceFilter = "";
     $("trace-search").value = "";
@@ -439,6 +481,8 @@ async function loadAnalysis(databaseId) {
     render();
   } catch (error) {
     if (requestNumber === state.requestNumber) showError(error.message);
+  } finally {
+    if (requestNumber === state.requestNumber) setLoading(false);
   }
 }
 
@@ -449,12 +493,13 @@ async function start() {
     const databases = await response.json();
     if (!databases.length) throw new Error("No extracted SQLite databases found. Run dns_feature_extractor.py first.");
     const select = $("database-select");
+    select.replaceChildren();
     for (const database of databases) {
       const option = node("option", "", database.label);
       option.value = database.id;
       select.append(option);
     }
-    select.value = databases.some((database) => database.id === "tunneling") ? "tunneling" : databases[0].id;
+    select.value = databases[0].id;
     await loadAnalysis(select.value);
   } catch (error) {
     showError(error.message);
@@ -463,13 +508,59 @@ async function start() {
 
 $("tab-overview").addEventListener("click", () => setTab("overview"));
 $("tab-detail").addEventListener("click", () => setTab("detail"));
+for (const name of ["overview", "detail"]) {
+  $(`tab-${name}`).addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const target = event.key === "Home" ? "overview" : event.key === "End" ? "detail" : name === "overview" ? "detail" : "overview";
+    setTab(target);
+    $(`tab-${target}`).focus();
+  });
+}
+$("retry-button").addEventListener("click", () => {
+  if ($("database-select").value) loadAnalysis($("database-select").value);
+  else start();
+});
+$("upload-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const file = $("pcap-file").files[0];
+  if (!file) return;
+  const status = $("upload-status");
+  const button = $("upload-button");
+  status.classList.remove("is-error");
+  status.textContent = "Extracting DNS queries…";
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(file.name) },
+      body: file,
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Upload failed.");
+    const option = node("option", "", result.label);
+    option.value = result.id;
+    $("database-select").append(option);
+    $("database-select").value = result.id;
+    status.textContent = `Saved ${number(result.query_count)} queries across ${number(result.domain_count)} domains.`;
+    await loadAnalysis(result.id);
+    setTab("overview");
+  } catch (error) {
+    status.classList.add("is-error");
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 $("database-select").addEventListener("change", (event) => {
   closeSidebar();
   loadAnalysis(event.target.value);
 });
 $("threshold-input").addEventListener("input", (event) => {
-  state.threshold = Number(event.target.value);
-  render();
+  $("threshold-value").textContent = `${event.target.value} / ${state.analysis.max_score}`;
+});
+$("threshold-input").addEventListener("change", (event) => {
+  loadAnalysis($("database-select").value, Number(event.target.value));
 });
 $("domain-search").addEventListener("input", (event) => {
   state.filter = event.target.value.trim().toLowerCase();
@@ -490,6 +581,7 @@ $("menu-button").addEventListener("click", () => {
   $("settings-panel").classList.toggle("is-open", open);
   $("sidebar-scrim").hidden = !open;
   $("menu-button").setAttribute("aria-expanded", String(open));
+  if (open) $("database-select").focus();
 });
 $("sidebar-scrim").addEventListener("click", closeSidebar);
 document.addEventListener("keydown", (event) => {

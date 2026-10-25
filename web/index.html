@@ -10,6 +10,7 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to analysis</a>
   <div class="app-shell">
     <aside class="sidebar" id="settings-panel" aria-label="Analysis settings">
       <div class="sidebar-inner">
@@ -25,24 +26,27 @@
           <p class="source-note" id="source-note"></p>
         </div>
 
+        <form class="upload-form" id="upload-form">
+          <label class="control-label" for="pcap-file">Analyze a PCAP</label>
+          <input id="pcap-file" type="file" accept=".pcap,.pcapng,.cap" required>
+          <button id="upload-button" type="submit">Extract and analyze</button>
+          <p class="control-hint">Local files up to 25 MiB. Uploads are saved under data/uploads and output/uploads.</p>
+          <p class="upload-status" id="upload-status" role="status" aria-live="polite"></p>
+        </form>
+
         <div class="control-group threshold-group">
           <div class="control-heading">
             <label class="control-label" for="threshold-input">Flag threshold</label>
-            <output id="threshold-value" for="threshold-input">2 / 4</output>
+            <output id="threshold-value" for="threshold-input">Loading…</output>
           </div>
-          <input id="threshold-input" type="range" min="1" max="4" step="1" value="2">
-          <div class="range-labels" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <input id="threshold-input" type="range" min="1" step="1" disabled>
+          <div class="range-labels" id="range-labels" aria-hidden="true"></div>
           <p class="control-hint">Domains scoring at or above this value are flagged.</p>
         </div>
 
         <section class="sidebar-rules" aria-labelledby="rules-heading">
           <h3 id="rules-heading">Scoring rules</h3>
-          <ul>
-            <li><span>Average entropy</span><strong>&gt; 3.5</strong></li>
-            <li><span>Query count</span><strong>&gt; 20</strong></li>
-            <li><span>TXT / NULL ratio</span><strong>&gt; 30%</strong></li>
-            <li><span>Average query length</span><strong>&gt; 50</strong></li>
-          </ul>
+          <ul id="sidebar-rule-list"></ul>
           <p>Each rule adds one point. Threshold changes affect this view only.</p>
         </section>
 
@@ -57,7 +61,7 @@
 
     <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
 
-    <main class="main-content">
+    <main class="main-content" id="main-content" tabindex="-1">
       <header class="page-header">
         <div class="heading-wrap">
           <button class="menu-button" id="menu-button" type="button" aria-label="Open settings" aria-controls="settings-panel" aria-expanded="false">
@@ -74,10 +78,12 @@
 
       <nav class="tabs" role="tablist" aria-label="Dashboard views">
         <button class="tab is-active" id="tab-overview" role="tab" type="button" aria-controls="panel-overview" aria-selected="true">Overview</button>
-        <button class="tab" id="tab-detail" role="tab" type="button" aria-controls="panel-detail" aria-selected="false">Domain Detail</button>
+        <button class="tab" id="tab-detail" role="tab" type="button" aria-controls="panel-detail" aria-selected="false" tabindex="-1">Domain Detail</button>
       </nav>
 
       <div class="error-banner" id="error-banner" role="alert" hidden></div>
+      <div class="loading-banner" id="loading-banner" role="status" aria-live="polite" hidden>Loading capture analysis…</div>
+      <button class="retry-button" id="retry-button" type="button" hidden>Retry loading</button>
 
       <section class="tab-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
         <div class="reading-note"><span class="note-mark">i</span><p><strong>Screening, not a verdict.</strong> Scores summarize four fixed rules. Review the matched signals and capture source before drawing conclusions.</p></div>

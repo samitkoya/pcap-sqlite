@@ -1,6 +1,6 @@
 # Rule-based DNS tunneling detector
 
-A four-day information security course project that turns real DNS packet captures into SQLite data, scores domains with four explainable rules, and displays the results in a local HTML dashboard. It uses PyShark with TShark and **no machine learning**.
+A four-day information security course project that turns real DNS packet captures into SQLite data, scores domains with four explainable rules, and displays the results in a local HTML dashboard. Upload a PCAP in the sidebar to run the same extraction and view its results immediately. It uses PyShark with TShark and **no machine learning**.
 
 ## Project layout
 
@@ -8,20 +8,21 @@ A four-day information security course project that turns real DNS packet captur
 dns_feature_extractor.py   PCAP -> dns_queries and domain_summary in SQLite
 detector.py                Four-rule domain scoring and CLI
 dashboard_server.py        Read-only localhost API and HTML dashboard server
-dashboard.py               Original Streamlit dashboard for the course brief
 web/                       Standalone HTML, CSS, JavaScript, favicon
 data/normal.pcap            Required general DNS comparison capture
 data/tunneling.pcap         Required source-labeled DNSCAT C2 capture
-data/additional/            Five more source-labeled tunneling PCAPs
+data/additional/            Eight comparison PCAPs with documented provenance
+data/uploads/               Local user uploads (created on demand, ignored by Git)
 data/SOURCES.md             Exact provenance, hashes, and label limits
 output/normal.db            SQLite analysis of the comparison capture
 output/tunneling.db         SQLite analysis of the primary tunnel capture
 output/additional/          SQLite analyses of the extra captures
-docs/screenshots/           Verified dashboard screenshots
+output/uploads/             SQLite analyses of local uploads (ignored by Git)
+docs/screenshots/           Dashboard image embedded in the report
 report.md                  Course report
 ```
 
-The PCAPs, SQLite databases, screenshots, and application code are included in this repository. The local `.venv/` and portable TShark copy are excluded; install TShark separately after cloning. Third-party capture provenance is in [data/SOURCES.md](data/SOURCES.md).
+The ten bundled PCAPs, SQLite databases, report image, and application code are included in this repository. The local `.venv/` and portable TShark copy are excluded; install TShark separately after cloning. Third-party capture provenance is in [data/SOURCES.md](data/SOURCES.md).
 
 ## Setup on Windows PowerShell
 
@@ -43,7 +44,9 @@ SQLite comes with Python. The bundled databases let you view results immediately
 python dashboard_server.py
 ```
 
-Open <http://127.0.0.1:8501/>. The server listens on localhost and reads the bundled SQLite files without changing them. Select any of the seven captures in the sidebar. **Overview** shows query and domain counts, a searchable ranked table, and an entropy chart. **Domain Detail** explains the four rule hits and shows query frequency over time. The flag-threshold slider changes the displayed status only. The earlier Streamlit version remains available with `python -m streamlit run dashboard.py --server.port 8503`.
+Open <http://127.0.0.1:8501/>. The server listens on localhost. Select any of the ten bundled captures in the sidebar. **Overview** shows query and domain counts, a searchable ranked table, and an entropy chart. **Domain Detail** explains the four rule hits, DNS query trace, type mix, and query frequency over time. The flag-threshold slider changes the displayed status only.
+
+To analyze your own capture, choose a `.pcap`, `.pcapng`, or `.cap` file under **Analyze a PCAP** and select **Extract and analyze**. TShark must be installed or pointed to by `TSHARK_PATH`. The server accepts up to 25 MiB and checks the capture magic bytes. It saves the original to `data/uploads/`, extracts query rows and domain summaries through PyShark, writes both required tables to `output/uploads/`, and selects the new database. Uploaded captures have no ground-truth label; review their provenance separately. These upload directories are local and ignored by Git. On a fresh clone without TShark, bundled results remain viewable but upload/extraction returns a clear error.
 
 ## Rebuild and score the databases
 
@@ -56,7 +59,7 @@ python detector.py --db output/normal.db
 python detector.py --db output/tunneling.db --known-malicious example.attack
 ```
 
-The five additional tool captures:
+The five earlier tool captures:
 
 ```powershell
 python dns_feature_extractor.py --pcap data/additional/tunneling_dns2tcp.pcap --db output/additional/dns2tcp.db
@@ -65,6 +68,14 @@ python dns_feature_extractor.py --pcap data/additional/tunneling_dnsextrator.pca
 python dns_feature_extractor.py --pcap data/additional/tunneling_iodine.pcap --db output/additional/iodine.db
 python dns_feature_extractor.py --pcap data/additional/tunneling_sods.pcap --db output/additional/sods.db
 python detector.py --db output/additional/iodine.db
+```
+
+Three added comparison captures:
+
+```powershell
+python dns_feature_extractor.py --pcap data/additional/ctu_normal_4_dns.pcap --db output/additional/ctu_normal_4_dns.db
+python dns_feature_extractor.py --pcap data/additional/korving_dns2tcp_key.pcap --db output/additional/korving_dns2tcp_key.db
+python dns_feature_extractor.py --pcap data/additional/korving_dns2tcp_txt.pcap --db output/additional/korving_dns2tcp_txt.db
 ```
 
 Each run stores one row per DNS **query** in `dns_queries` and one summary per base domain in `domain_summary`. The detector awards one point each for average subdomain entropy > 3.5, query count > 20, TXT/NULL ratio > 0.3, and average query length > 50. A score of at least 2 is flagged for review. Its base-domain splitter uses the last two labels, so names under multi-part public suffixes may be grouped incorrectly.
@@ -80,5 +91,18 @@ Each run stores one row per DNS **query** in `dns_queries` and one summary per b
 | DNSExfiltrator | 14 | 1 | `hsc.fr` 3/4 | Yes |
 | iodine | 12 | 1 | `biillpi.com` 1/4 | **No** |
 | sods | 493 | 1 | `hsc.fr` 4/4 | Yes |
+| CTU normal DNS | 3,029 | 112 | Highest 1/4 | No |
+| DNS2TCP KEY scenario | 376 | 2 | `example.attack` 2/4 | Yes |
+| DNS2TCP TXT scenario | 457 | 4 | `example.attack` 2/4; `powerdns.com` 3/4 | Both flagged |
 
-The tool labels come from their source repositories, not the detector. The Wireshark sample is not independently labeled benign. These selected captures do not establish a general accuracy or false-positive rate. The iodine miss illustrates a low-volume limitation. See [report.md](report.md) for the course explanation and [data/SOURCES.md](data/SOURCES.md) for original download links and hashes.
+The scenario labels come from their source repositories, not the detector. The Wireshark sample is not independently labeled benign. The CTU dataset has a source-level normal description, but not per-domain benign labels. These captures do not establish a general accuracy or false-positive rate. The iodine miss illustrates a low-volume limitation; `powerdns.com` in the TXT scenario is an unresolved classification concern. See [report.md](report.md) for the course explanation and [data/SOURCES.md](data/SOURCES.md) for original download links and hashes.
+
+## Checks and local API
+
+```powershell
+python -m unittest discover -s tests -v
+node --check web/app.js
+python -m py_compile dns_feature_extractor.py detector.py dashboard_server.py
+```
+
+The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.

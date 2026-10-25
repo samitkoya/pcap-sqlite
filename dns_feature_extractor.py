@@ -7,6 +7,7 @@ import os
 import shutil
 import sqlite3
 from collections import Counter
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -119,9 +120,10 @@ def save_to_sqlite(df: pd.DataFrame, agg_df: pd.DataFrame,
     """Persist raw packet queries and domain summaries for the required PCAP-to-SQLite module."""
     destination = Path(db_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(destination) as connection:
-        df.to_sql("dns_queries", connection, if_exists="replace", index=False)
-        agg_df.to_sql("domain_summary", connection, if_exists="replace", index=False)
+    with closing(sqlite3.connect(destination)) as connection:
+        with connection:
+            df.to_sql("dns_queries", connection, if_exists="replace", index=False)
+            agg_df.to_sql("domain_summary", connection, if_exists="replace", index=False)
 
 
 def main() -> None:

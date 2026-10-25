@@ -2,6 +2,7 @@
 
 import argparse
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -65,7 +66,7 @@ def main() -> None:
     db_path = Path(args.db)
     if not db_path.is_file():
         parser.error(f"Database does not exist: {db_path}")
-    with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as connection:
+    with closing(sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)) as connection:
         summary = pd.read_sql_query("SELECT * FROM domain_summary", connection)
     results = score_domains(summary)
     results = results.sort_values(["suspicion_score", "query_count", "base_domain"],
