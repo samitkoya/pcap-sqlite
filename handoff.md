@@ -1,5 +1,9 @@
 # Project handoff
 
+## Feature branch closed: 2026-10-26
+
+The user clarified that the work should be integrated into `main` and the feature branch closed. `git status --short --branch` showed a clean `improve/full-overhaul` checkout. `git rev-parse HEAD main origin/main origin/improve/full-overhaul` and `git ls-remote origin refs/heads/main refs/heads/improve/full-overhaul` showed all four refs at `bf41343c1622dc7eeb5770e2ad7ea221e9ee6c37`; the earlier push was a fast-forward integration into `main`. `git switch main` succeeded and reported it up to date with `origin/main`. `git branch -d improve/full-overhaul` deleted the local branch at `bf41343`. `git push origin --delete improve/full-overhaul` exited 0 and reported the remote branch deleted. The active branch is now `main`. Exact next step: use `main` for further work; the dashboard can be started using `README.md` after reboot.
+
 ## Published to main: 2026-10-26
 
 The user explicitly requested pushing the current project branch to `main`, superseding the earlier local-only/no-push direction. `git status --short --branch` showed a clean `improve/full-overhaul` at `637d67d`, matching `origin/improve/full-overhaul`. `git fetch origin` exited 0. `git merge-base --is-ancestor origin/main HEAD` confirmed a fast-forward, and `git rev-list --left-right --count origin/main...HEAD` returned `0 10`. `git push origin HEAD:main` exited 0 and advanced remote `main` from `ee3a251` to `637d67d`. This note records that observed push; no force push was used. Exact next step: verify remote `main`, and start the app through `README.md` after reboot.
