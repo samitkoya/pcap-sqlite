@@ -1,5 +1,23 @@
 # Project handoff
 
+## Fresh launch: 2026-10-26
+
+The user asked to start the product from scratch. Read `prompt.md` and this handoff first. `git status --short --branch` was clean on `improve/full-overhaul...origin/improve/full-overhaul`. Port 8501 was occupied by this project's existing `.venv\Scripts\python.exe dashboard_server.py --port 8501` process (PID 3840); verified its command line, then stopped it. `python -m venv .task1/fresh-run-venv` exited 0. `.task1/fresh-run-venv\Scripts\python.exe -m pip install -r requirements.txt` exited 0, installing PyShark 0.6, pandas 3.1.0, scipy 1.18.1, and dependencies. The project-local ignored TShark reported 4.4.19. The fresh environment's `pip check` found no broken requirements.
+
+Using the fresh environment with `-W error::DeprecationWarning`, ran `dns_feature_extractor.py` on all ten bundled real PCAPs and regenerated all ten corresponding SQLite files. Observed query/domain counts: normal 19/7, main tunnel 438/1, dns2tcp 22/1, dnscat2 12/1, DNSExfiltrator 14/1, iodine 12/1, sods 493/1, CTU 3,029/112, DNS2TCP KEY 376/2, DNS2TCP TXT 457/4. Every command exited 0 without a deprecation warning, every database had both required tables, and every `PRAGMA integrity_check` returned `ok`. Detector CLI results: normal 0/7 flagged, main `example.attack` 4/4 flagged, iodine `biillpi.com` 2/4 flagged. `.task1/fresh-run-venv\Scripts\python.exe -m unittest discover -s tests -v` passed 6/6, including a real capture upload.
+
+Started the dashboard from `.task1/fresh-run-venv` on `127.0.0.1:8501`. Live API checks returned health `ok`, TShark available, iodine flagged at default threshold and clear at threshold 3, `powerdns.com` marked unverified, and HTTP 400 `invalid_pcap` for bad upload bytes. Headless Chrome checks passed default 438-query view, keyboard tab/domain controls, score threshold change, CTU selection, Domain Detail rules, iodine and PowerDNS evidence, and 360/768/1280/1920 px layouts with no page overflow or browser errors. `open_in_codex` was requested for the local URL and returned `queued`; the direct URL remains usable. The final listener check found PID 1968 running `.task1/fresh-run-venv\Scripts\python.exe dashboard_server.py --port 8501`; `/api/health` returned HTTP 200 with 14 available databases (ten bundled plus four ignored local uploads).
+
+Regenerated SQLite files were binary-different but a read-only row-by-row and schema comparison against `HEAD` found all ten logically identical. The first ignored comparison script printed matching results but failed during temporary cleanup because SQLite connections remained open on Windows; adding explicit connection closure made the rerun exit 0 for all ten. Restored only the redundant tracked `output/` binary changes with `git restore -- output`; `git status --short --branch` returned clean afterward. No source code, capture, or report file was changed, and no push was run. Exact next step: open `http://127.0.0.1:8501/` while this process runs; after reboot, follow `README.md` to start it again.
+
+[TASK 1] STATUS: done | OUTPUT: ignored `.task1/fresh-run-venv`, verified TShark 4.4.19 | ISSUES: fresh clones must install TShark.
+[TASK 2] STATUS: done | OUTPUT: ten existing real captures and documented provenance | ISSUES: source labels do not certify every domain.
+[TASK 3] STATUS: done | OUTPUT: ten rebuilt SQLite databases, logically matched to tracked outputs | ISSUES: none observed.
+[TASK 4] STATUS: done | OUTPUT: detector CLI results for normal, tunnel, and iodine | ISSUES: iodine rule was tuned on that sample.
+[TASK 5] STATUS: done | OUTPUT: live dashboard at `127.0.0.1:8501` | ISSUES: none observed in browser checks.
+[TASK 6] STATUS: done | OUTPUT: fresh PCAP-to-SQLite-to-detector-to-dashboard run | ISSUES: no population accuracy claim.
+[TASK 7] STATUS: done | OUTPUT: existing `report.md` and screenshot verified in prior session | ISSUES: neither artifact changed in this launch.
+
 ## Application retest: 2026-10-26 after iodine rule change
 
 The user requested another application test. Read `prompt.md` and the latest handoff first. `git status --short --branch` began clean on `improve/full-overhaul`, ahead of origin by two local commits. `.\.venv\Scripts\python.exe --version` returned 3.14.6, `.\.venv\Scripts\python.exe -m pip check` reported no broken requirements, the project-local ignored TShark reported version 4.4.19, and live `/api/health` returned HTTP 200 with `status=ok` and `tshark_available=true` (13 available databases before the browser upload). The server remained running on `127.0.0.1:8501`.
