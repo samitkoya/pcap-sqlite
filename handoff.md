@@ -1,5 +1,9 @@
 # Project handoff
 
+## Published to main: 2026-10-26
+
+The user explicitly requested pushing the current project branch to `main`, superseding the earlier local-only/no-push direction. `git status --short --branch` showed a clean `improve/full-overhaul` at `637d67d`, matching `origin/improve/full-overhaul`. `git fetch origin` exited 0. `git merge-base --is-ancestor origin/main HEAD` confirmed a fast-forward, and `git rev-list --left-right --count origin/main...HEAD` returned `0 10`. `git push origin HEAD:main` exited 0 and advanced remote `main` from `ee3a251` to `637d67d`. This note records that observed push; no force push was used. Exact next step: verify remote `main`, and start the app through `README.md` after reboot.
+
 ## Editable scoring rules and maroon themes: 2026-10-26
 
 The user asked for the values shown under **Scoring rules** to be editable and for light and dark maroon themes. Read `prompt.md` and this handoff before changing files. The working tree began clean on `improve/full-overhaul`, ahead of origin by one local commit. `detector.py` now keeps the original five course cutoffs as defaults and accepts an optional immutable `RuleThresholds` value for the four-point score. `dashboard_server.py` validates optional cutoff query parameters, uses the detector to recalculate scores and flags, and returns rule values and allowed ranges. The browser offers five number fields with Apply and Reset, preserves an applied override when switching captures during the page session, and restores defaults on reset or reload. The HTML/CSS has light and dark maroon themes; the header switch stores its preference in browser localStorage. Captures and SQLite rows are unaffected by these view-level edits.
