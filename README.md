@@ -57,6 +57,10 @@ python dashboard_server.py
 
 Open <http://127.0.0.1:8501/>. The server listens on localhost. Select any of the ten bundled captures in the sidebar. **Overview** shows query and domain counts, a searchable ranked table, and an entropy chart. **Domain Detail** explains the four rule hits, DNS query trace, type mix, and query frequency over time. The flag-threshold slider changes the displayed status only.
 
+The sidebar's **Scoring rules** fields let you edit all five cutoffs and apply them to the current analysis. The server recalculates the four rule points, scores, and flags from the saved SQLite features; the PCAP and database are not rewritten. The adjusted rules carry over when you select another capture during that page session. **Reset defaults** restores the course thresholds; a page reload also restores them. The header button switches between dark and light maroon themes, and remembers the theme in this browser.
+
+![Light maroon theme with editable scoring cutoffs](docs/screenshots/dashboard_light_rules.png)
+
 To analyze your own capture, choose a `.pcap`, `.pcapng`, or `.cap` file under **Analyze a PCAP** and select **Extract and analyze**. TShark must be installed or pointed to by `TSHARK_PATH`. The server accepts up to 25 MiB and checks the capture magic bytes. It saves the original to `data/uploads/`, extracts query rows and domain summaries through PyShark, writes both required tables to `output/uploads/`, and selects the new database. Uploaded captures have no ground-truth label; review their provenance separately. These upload directories are local and ignored by Git. On a fresh clone without TShark, bundled results remain viewable but upload/extraction returns a clear error.
 
 ## Rebuild and score the databases
@@ -116,4 +120,4 @@ node --check web/app.js
 python -m py_compile dns_feature_extractor.py detector.py dashboard_server.py
 ```
 
-The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>&threshold=<1..4>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. Omitting `threshold` uses the detector's default of 2. The analysis response supplies rule values, score range, domain scores, and threshold-based flags; the browser only displays them. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.
+The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>&threshold=<1..4>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. The analysis endpoint also accepts optional `avg_entropy`, `max_entropy`, `query_count`, `txt_null_ratio` (fraction from 0 to 1), and `avg_query_len` parameters. Omitting them uses the constants in `detector.py`; omitting `threshold` uses 2. The analysis response supplies rule values, score range, domain scores, and server-calculated flags. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.

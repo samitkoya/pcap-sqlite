@@ -3,6 +3,7 @@
 const state = {
   analysis: null,
   threshold: null,
+  ruleOverrides: null,
   selectedDomain: null,
   filter: "",
   traceFilter: "",
@@ -53,20 +54,46 @@ function renderThresholdControls() {
   labels.replaceChildren();
   for (let value = 1; value <= analysis.max_score; value++) labels.append(node("span", "", String(value)));
 
-  const rules = analysis.rules;
+}
+
+function renderRuleControls() {
+  const { rules, rule_limits: limits } = state.analysis;
   const definitions = [
-    ["Entropy", `avg > ${rules.avg_entropy} or max > ${rules.max_entropy} with TXT/NULL > ${Math.round(rules.txt_null_ratio * 100)}%`],
-    ["Query count", `> ${rules.query_count}`],
-    ["TXT / NULL ratio", `> ${Math.round(rules.txt_null_ratio * 100)}%`],
-    ["Average query length", `> ${rules.avg_query_len}`],
+    ["avg_entropy", "Average entropy", "bits", 0.1],
+    ["max_entropy", "Peak entropy", "bits", 0.1],
+    ["query_count", "Query count", "queries", 1],
+    ["txt_null_ratio", "TXT / NULL share", "%", 0.1],
+    ["avg_query_len", "Average query length", "characters", 0.1],
   ];
-  const list = $("sidebar-rule-list");
-  list.replaceChildren();
-  for (const [label, threshold] of definitions) {
-    const item = node("li");
-    item.append(node("span", "", label), node("strong", "", threshold));
-    list.append(item);
+  const controls = $("rule-inputs");
+  controls.replaceChildren();
+  for (const [key, label, unit, step] of definitions) {
+    const row = node("div", "rule-field");
+    const fieldLabel = node("label", "", label);
+    fieldLabel.htmlFor = `rule-${key}`;
+    const inputWrap = node("div", "rule-input-wrap");
+    const input = node("input");
+    input.type = "number";
+    input.id = `rule-${key}`;
+    input.name = key;
+    input.required = true;
+    input.min = String(limits[key][0] * (key === "txt_null_ratio" ? 100 : 1));
+    input.max = String(limits[key][1] * (key === "txt_null_ratio" ? 100 : 1));
+    input.step = String(step);
+    input.value = String(rules[key] * (key === "txt_null_ratio" ? 100 : 1));
+    inputWrap.append(input, node("span", "", unit));
+    row.append(fieldLabel, inputWrap);
+    controls.append(row);
   }
+  $("rule-explanation").textContent = "Entropy point: average above its cutoff, or peak above its cutoff when TXT / NULL share is above its cutoff. Each comparison uses >, not ≥.";
+}
+
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("theme-toggle").textContent = theme === "dark" ? "Light mode" : "Dark mode";
+  $("theme-toggle").setAttribute("aria-pressed", String(theme === "light"));
+  document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#180f14" : "#fffaf9";
+  try { localStorage.setItem("packet-scope-theme", theme); } catch { /* Theme still works without storage. */ }
 }
 
 function showError(message) {
@@ -84,6 +111,8 @@ function clearError() {
 function setLoading(loading) {
   $("loading-banner").hidden = !loading;
   $("database-select").disabled = loading;
+  $("apply-rules").disabled = loading;
+  $("reset-rules").disabled = loading;
   $("panel-overview").setAttribute("aria-busy", String(loading));
   $("panel-detail").setAttribute("aria-busy", String(loading));
 }
@@ -439,6 +468,7 @@ function render() {
   $("source-file").textContent = state.analysis.filename;
   $("source-note").textContent = state.analysis.source_note;
   renderThresholdControls();
+  renderRuleControls();
   renderMetrics();
   renderRanking();
   renderEntropyChart();
@@ -455,7 +485,7 @@ function closeSidebar() {
   if (wasOpen && window.matchMedia("(max-width: 760px)").matches) $("menu-button").focus();
 }
 
-async function loadAnalysis(databaseId, threshold = state.threshold) {
+async function loadAnalysis(databaseId, threshold = state.threshold, rules = state.ruleOverrides) {
   const requestNumber = ++state.requestNumber;
   clearError();
   setLoading(true);
@@ -463,12 +493,14 @@ async function loadAnalysis(databaseId, threshold = state.threshold) {
   try {
     const parameters = new URLSearchParams({ db: databaseId });
     if (threshold !== null) parameters.set("threshold", String(threshold));
+    if (rules) for (const [key, value] of Object.entries(rules)) parameters.set(key, String(value));
     const response = await fetch(`/api/analysis?${parameters}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Could not load the analysis.");
     if (requestNumber !== state.requestNumber) return;
     state.analysis = payload;
     state.threshold = payload.flag_threshold;
+    state.ruleOverrides = rules;
     state.selectedQueryId = null;
     state.traceFilter = "";
     $("trace-search").value = "";
@@ -483,8 +515,10 @@ async function loadAnalysis(databaseId, threshold = state.threshold) {
     }
     select.value = state.selectedDomain || "";
     render();
+    return true;
   } catch (error) {
     if (requestNumber === state.requestNumber) showError(error.message);
+    return false;
   } finally {
     if (requestNumber === state.requestNumber) setLoading(false);
   }
@@ -580,6 +614,25 @@ $("threshold-input").addEventListener("input", (event) => {
 $("threshold-input").addEventListener("change", (event) => {
   loadAnalysis($("database-select").value, Number(event.target.value));
 });
+$("rule-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const rules = {};
+  for (const key of Object.keys(state.analysis.rules)) {
+    const input = $(`rule-${key}`);
+    rules[key] = Number(input.value) / (key === "txt_null_ratio" ? 100 : 1);
+  }
+  if (await loadAnalysis($("database-select").value, state.threshold, rules)) {
+    $("rule-status").textContent = "Rules applied to this view.";
+  }
+});
+$("reset-rules").addEventListener("click", async () => {
+  if (await loadAnalysis($("database-select").value, state.threshold, null)) {
+    $("rule-status").textContent = "Default rules restored.";
+  }
+});
+$("theme-toggle").addEventListener("click", () => {
+  setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
 $("domain-search").addEventListener("input", (event) => {
   state.filter = event.target.value.trim().toLowerCase();
   if (state.analysis) renderRanking();
@@ -609,5 +662,8 @@ document.addEventListener("keydown", (event) => {
 });
 window.matchMedia("(max-width: 760px)").addEventListener("change", closeSidebar);
 closeSidebar();
+let savedTheme = "dark";
+try { savedTheme = localStorage.getItem("packet-scope-theme") === "light" ? "light" : "dark"; } catch { /* Use dark theme. */ }
+setTheme(savedTheme);
 
 start();

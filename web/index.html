@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1018">
+  <meta name="theme-color" content="#180f14">
   <title>DNS Tunneling Detector</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/styles.css">
@@ -44,11 +44,17 @@
           <p class="control-hint">Domains scoring at or above this value are flagged.</p>
         </div>
 
-        <section class="sidebar-rules" aria-labelledby="rules-heading">
+        <form class="sidebar-rules" id="rule-form" aria-labelledby="rules-heading">
           <h3 id="rules-heading">Scoring rules</h3>
-          <ul id="sidebar-rule-list"></ul>
-          <p>Each rule adds one point. Threshold changes affect this view only.</p>
-        </section>
+          <div class="rule-inputs" id="rule-inputs"></div>
+          <p class="rule-explanation" id="rule-explanation"></p>
+          <div class="rule-actions">
+            <button id="apply-rules" type="submit">Apply rules</button>
+            <button id="reset-rules" type="button">Reset</button>
+          </div>
+          <p class="rule-status" id="rule-status" role="status" aria-live="polite"></p>
+          <p>Four points maximum. Edits recalculate this view and do not change the saved PCAP or SQLite data.</p>
+        </form>
 
         <section class="sidebar-guide" aria-label="How to read the score">
           <span class="eyebrow">READING THE SCORE</span>
@@ -73,7 +79,10 @@
             <p>Review query patterns that may be consistent with DNS tunneling.</p>
           </div>
         </div>
-        <div class="source-meta"><span>DATABASE</span><strong id="source-file">Loading…</strong></div>
+        <div class="header-actions">
+          <button class="theme-toggle" id="theme-toggle" type="button" aria-pressed="false">Light mode</button>
+          <div class="source-meta"><span>DATABASE</span><strong id="source-file">Loading…</strong></div>
+        </div>
       </header>
 
       <nav class="tabs" role="tablist" aria-label="Dashboard views">
@@ -86,7 +95,7 @@
       <button class="retry-button" id="retry-button" type="button" hidden>Retry loading</button>
 
       <section class="tab-panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-        <div class="reading-note"><span class="note-mark">i</span><p><strong>Screening, not a verdict.</strong> Scores summarize four fixed rules. Review the matched signals and capture source before drawing conclusions.</p></div>
+        <div class="reading-note"><span class="note-mark">i</span><p><strong>Screening, not a verdict.</strong> Scores summarize four adjustable rules. Review the matched signals and capture source before drawing conclusions.</p></div>
         <div class="metric-strip" id="metric-strip" aria-label="Analysis summary"></div>
 
         <div class="section-heading table-heading">

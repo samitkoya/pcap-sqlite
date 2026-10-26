@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import dashboard_server
 from dashboard_server import DashboardHandler, ROOT, analysis_payload
+from detector import RuleThresholds
 
 
 class DashboardTests(unittest.TestCase):
@@ -31,6 +32,19 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(iodine["domains"][0]["flagged"])
         self.assertTrue(iodine["domains"][0]["rule_hits"]["avg_entropy"])
         self.assertIn("Unverified", iodine["domains"][0]["evidence_label"])
+        custom = analysis_payload("iodine", rules=RuleThresholds(avg_entropy=8, max_entropy=8))
+        self.assertEqual(custom["flagged_count"], 0)
+        self.assertEqual(custom["domains"][0]["suspicion_score"], 1)
+        self.assertFalse(custom["domains"][0]["rule_hits"]["avg_entropy"])
+        self.assertEqual(analysis_payload("iodine")["flagged_count"], 1)
+        all_custom = analysis_payload("iodine", rules=RuleThresholds(
+            avg_entropy=8, max_entropy=8, query_count=5,
+            txt_null_ratio=1, avg_query_len=30))
+        self.assertEqual(all_custom["domains"][0]["suspicion_score"], 2)
+        self.assertEqual(all_custom["domains"][0]["rule_hits"], {
+            "avg_entropy": False, "query_count": True,
+            "txt_null_ratio": False, "avg_query_len": True,
+        })
         powerdns = next(domain for domain in analysis_payload("dns2tcp-txt")["domains"]
                         if domain["base_domain"] == "powerdns.com")
         self.assertTrue(powerdns["flagged"])
@@ -53,6 +67,19 @@ class DashboardTests(unittest.TestCase):
             with urlopen(f"{base}/api/analysis?db=tunneling&threshold=4") as response:
                 payload = json.load(response)
                 self.assertEqual((payload["flag_threshold"], payload["flagged_count"]), (4, 1))
+            with urlopen(f"{base}/api/analysis?db=iodine&avg_entropy=8&max_entropy=8") as response:
+                payload = json.load(response)
+                self.assertEqual((payload["flagged_count"], payload["rules"]["max_entropy"]), (0, 8))
+            with self.assertRaises(HTTPError) as error:
+                urlopen(f"{base}/api/analysis?db=iodine&query_count=1.5")
+            self.assertEqual(error.exception.code, 400)
+            self.assertEqual(json.load(error.exception)["code"], "invalid_rules")
+            error.exception.close()
+            with self.assertRaises(HTTPError) as error:
+                urlopen(f"{base}/api/analysis?db=iodine&avg_entropy=NaN")
+            self.assertEqual(error.exception.code, 400)
+            self.assertEqual(json.load(error.exception)["code"], "invalid_rules")
+            error.exception.close()
             with self.assertRaises(HTTPError) as error:
                 urlopen(f"{base}/api/analysis?db=normal&threshold=9")
             self.assertEqual(error.exception.code, 400)

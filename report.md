@@ -21,9 +21,10 @@ Each query records its name, name length, query type, timestamp, base domain, an
 | DNS2TCP KEY scenario | 376 | 2 | `example.attack` flagged at 2/4 |
 | DNS2TCP TXT scenario | 457 | 4 | `example.attack` and `powerdns.com` flagged at 3/4; the latter has unverified ground truth |
 
-For `example.attack` in the primary capture, the observed mean entropy was 3.640, mean query length 83.7 characters, and TXT/NULL fraction 33.8%. Its 438 queries included 144 CNAME, 146 MX, and 148 TXT questions. All ten bundled databases contain the required tables. The dashboard is written in HTML, CSS, and JavaScript; a localhost Python server reads those databases and can extract a user-uploaded PCAP through the same PyShark pipeline. The Overview and Domain Detail tabs show scores, four rule values, a query trace, type mix, and a timeline. The screenshot below shows the current UI.
+For `example.attack` in the primary capture, the observed mean entropy was 3.640, mean query length 83.7 characters, and TXT/NULL fraction 33.8%. Its 438 queries included 144 CNAME, 146 MX, and 148 TXT questions. All ten bundled databases contain the required tables. The dashboard is written in HTML, CSS, and JavaScript; a localhost Python server reads those databases and can extract a user-uploaded PCAP through the same PyShark pipeline. The Overview and Domain Detail tabs show scores, four rule values, a query trace, type mix, and a timeline. The sidebar can adjust the five scoring cutoffs for the current view without changing stored evidence. Dark and light maroon themes are available. The screenshot below shows the current UI.
 
 ![Dashboard Overview showing the flagged tunnel domain](docs/screenshots/dashboard_overview.png)
+
 
 ## Ground truth and limits
 

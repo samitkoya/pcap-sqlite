@@ -3,6 +3,7 @@
 import argparse
 import json
 import logging
+import math
 import os
 import sqlite3
 import uuid
@@ -16,12 +17,9 @@ import pandas as pd
 from dns_feature_extractor import aggregate_by_domain, parse_pcap, resolve_tshark_path, save_to_sqlite
 
 from detector import (
-    ENTROPY_THRESHOLD,
-    MAX_ENTROPY_THRESHOLD,
+    DEFAULT_RULES,
     FLAG_SCORE_THRESHOLD,
-    QUERY_COUNT_THRESHOLD,
-    QUERY_LENGTH_THRESHOLD,
-    TXT_NULL_RATIO_THRESHOLD,
+    RuleThresholds,
     entropy_rule_hit,
     score_domains,
 )
@@ -59,12 +57,12 @@ UPLOAD_ROOT = ROOT / "data" / "uploads"
 UPLOAD_DB_ROOT = ROOT / "output" / "uploads"
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 PCAP_MAGIC = {b"\xd4\xc3\xb2\xa1", b"\xa1\xb2\xc3\xd4", b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d", b"\x0a\x0d\x0d\x0a"}
-RULE_THRESHOLDS = {
-    "avg_entropy": ENTROPY_THRESHOLD,
-    "max_entropy": MAX_ENTROPY_THRESHOLD,
-    "query_count": QUERY_COUNT_THRESHOLD,
-    "txt_null_ratio": TXT_NULL_RATIO_THRESHOLD,
-    "avg_query_len": QUERY_LENGTH_THRESHOLD,
+RULE_LIMITS = {
+    "avg_entropy": (0, 8),
+    "max_entropy": (0, 8),
+    "query_count": (0, 1_000_000),
+    "txt_null_ratio": (0, 1),
+    "avg_query_len": (0, 253),
 }
 MAX_SCORE = 4
 
@@ -109,7 +107,31 @@ def timestamp_ms(value: str) -> int | None:
     return int(moment.timestamp() * 1000)
 
 
-def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOLD) -> dict:
+def parse_rule_thresholds(parameters: dict[str, list[str]]) -> RuleThresholds:
+    """Validate optional per-view cutoffs; raw SQLite features remain unchanged."""
+    values = DEFAULT_RULES.as_dict()
+    for name, (minimum, maximum) in RULE_LIMITS.items():
+        if name not in parameters:
+            continue
+        supplied = parameters[name]
+        if len(supplied) != 1:
+            raise ValueError(f"Provide one value for {name}")
+        try:
+            value = float(supplied[0])
+        except ValueError as exc:
+            raise ValueError(f"{name} must be a number") from exc
+        if not math.isfinite(value) or not minimum <= value <= maximum:
+            raise ValueError(f"{name} must be between {minimum} and {maximum}")
+        if name == "query_count":
+            if not value.is_integer():
+                raise ValueError("query_count must be a whole number")
+            value = int(value)
+        values[name] = value
+    return RuleThresholds(**values)
+
+
+def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOLD,
+                     rules: RuleThresholds = DEFAULT_RULES) -> dict:
     """Read the two required tables without modifying the PCAP evidence."""
     if not 1 <= flag_threshold <= MAX_SCORE:
         raise ValueError(f"Flag threshold must be between 1 and {MAX_SCORE}")
@@ -125,8 +147,8 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
             "FROM dns_queries ORDER BY timestamp, rowid"
         ).fetchall()
 
-    scored = score_domains(summary)
-    entropy_hits = entropy_rule_hit(scored)
+    scored = score_domains(summary, rules, flag_threshold)
+    entropy_hits = entropy_rule_hit(scored, rules)
     domains = []
     for row, entropy_hit in zip(scored.itertuples(index=False), entropy_hits):
         domains.append({
@@ -139,14 +161,14 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
             "txt_null_ratio": float(row.txt_null_ratio),
             "suspicion_score": int(row.suspicion_score),
             "evidence_label": DOMAIN_EVIDENCE.get((database_id, str(row.base_domain)), "No independent domain label"),
-            "flagged": bool(row.suspicion_score >= flag_threshold),
+            "flagged": bool(row.flagged),
             "review_tone": ("high" if row.suspicion_score >= min(MAX_SCORE, FLAG_SCORE_THRESHOLD + 1)
-                            else "medium") if row.suspicion_score >= flag_threshold else "none",
+                            else "medium") if row.flagged else "none",
             "rule_hits": {
                 "avg_entropy": bool(entropy_hit),
-                "query_count": bool(row.query_count > QUERY_COUNT_THRESHOLD),
-                "txt_null_ratio": bool(row.txt_null_ratio > TXT_NULL_RATIO_THRESHOLD),
-                "avg_query_len": bool(row.avg_query_len > QUERY_LENGTH_THRESHOLD),
+                "query_count": bool(row.query_count > rules.query_count),
+                "txt_null_ratio": bool(row.txt_null_ratio > rules.txt_null_ratio),
+                "avg_query_len": bool(row.avg_query_len > rules.avg_query_len),
             },
         })
 
@@ -176,7 +198,9 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
         "max_score": MAX_SCORE,
         "domains": domains,
         "queries": queries,
-        "rules": RULE_THRESHOLDS,
+        "rules": rules.as_dict(),
+        "default_rules": DEFAULT_RULES.as_dict(),
+        "rule_limits": RULE_LIMITS,
     }
 
 
@@ -230,8 +254,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             parameters = parse_qs(request.query, keep_blank_values=True)
             selected = parameters.get("db", ["tunneling"])
             threshold_values = parameters.get("threshold", [str(FLAG_SCORE_THRESHOLD)])
-            if set(parameters) - {"db", "threshold"}:
-                self.send_json({"error": "Only db and threshold parameters are supported", "code": "invalid_request"}, status=400)
+            if set(parameters) - {"db", "threshold", *RULE_LIMITS}:
+                self.send_json({"error": "Unknown analysis parameter", "code": "invalid_request"}, status=400)
                 return
             if len(selected) != 1 or selected[0] not in available_databases():
                 self.send_json({"error": "Unknown database", "code": "invalid_database"}, status=400)
@@ -241,7 +265,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             database_id = selected[0]
             try:
-                self.send_json(analysis_payload(database_id, int(threshold_values[0])))
+                rules = parse_rule_thresholds(parameters)
+            except ValueError as exc:
+                self.send_json({"error": str(exc), "code": "invalid_rules"}, status=400)
+                return
+            try:
+                self.send_json(analysis_payload(database_id, int(threshold_values[0]), rules))
             except ValueError as exc:
                 self.send_json({"error": str(exc), "code": "invalid_database"}, status=400)
             except (sqlite3.Error, pd.errors.DatabaseError, OSError):

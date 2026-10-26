@@ -3,6 +3,7 @@
 import argparse
 import sqlite3
 from contextlib import closing
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -20,15 +21,34 @@ REQUIRED_COLUMNS = {
 }
 
 
-def entropy_rule_hit(agg_df: pd.DataFrame) -> pd.Series:
+@dataclass(frozen=True)
+class RuleThresholds:
+    """The five editable cutoffs used by the four scoring points."""
+
+    avg_entropy: float = ENTROPY_THRESHOLD
+    max_entropy: float = MAX_ENTROPY_THRESHOLD
+    query_count: int = QUERY_COUNT_THRESHOLD
+    txt_null_ratio: float = TXT_NULL_RATIO_THRESHOLD
+    avg_query_len: float = QUERY_LENGTH_THRESHOLD
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+
+DEFAULT_RULES = RuleThresholds()
+
+
+def entropy_rule_hit(agg_df: pd.DataFrame,
+                     rules: RuleThresholds = DEFAULT_RULES) -> pd.Series:
     """Catch sustained randomness or a high peak paired with TXT/NULL use."""
-    return ((agg_df["avg_entropy"] > ENTROPY_THRESHOLD)
-            | ((agg_df["max_entropy"] > MAX_ENTROPY_THRESHOLD)
-               & (agg_df["txt_null_ratio"] > TXT_NULL_RATIO_THRESHOLD)))
+    return ((agg_df["avg_entropy"] > rules.avg_entropy)
+            | ((agg_df["max_entropy"] > rules.max_entropy)
+               & (agg_df["txt_null_ratio"] > rules.txt_null_ratio)))
 
 
-def score_domains(agg_df: pd.DataFrame) -> pd.DataFrame:
-    """Give one point per signal and flag scores of at least two.
+def score_domains(agg_df: pd.DataFrame, rules: RuleThresholds = DEFAULT_RULES,
+                  flag_threshold: int = FLAG_SCORE_THRESHOLD) -> pd.DataFrame:
+    """Give one point per signal and flag at the selected score threshold.
 
     Encoded tunnel labels can raise entropy and name length. Repeated queries
     can indicate data transfer, while TXT/NULL requests can carry payloads.
@@ -40,12 +60,12 @@ def score_domains(agg_df: pd.DataFrame) -> pd.DataFrame:
 
     results = agg_df.copy()
     results["suspicion_score"] = (
-        entropy_rule_hit(results).astype(int)
-        + (results["query_count"] > QUERY_COUNT_THRESHOLD).astype(int)
-        + (results["txt_null_ratio"] > TXT_NULL_RATIO_THRESHOLD).astype(int)
-        + (results["avg_query_len"] > QUERY_LENGTH_THRESHOLD).astype(int)
+        entropy_rule_hit(results, rules).astype(int)
+        + (results["query_count"] > rules.query_count).astype(int)
+        + (results["txt_null_ratio"] > rules.txt_null_ratio).astype(int)
+        + (results["avg_query_len"] > rules.avg_query_len).astype(int)
     )
-    results["flagged"] = results["suspicion_score"] >= FLAG_SCORE_THRESHOLD
+    results["flagged"] = results["suspicion_score"] >= flag_threshold
     return results
 
 
