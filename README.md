@@ -5,10 +5,12 @@ A four-day information security course project that turns real DNS packet captur
 ## Project layout
 
 ```text
-dns_feature_extractor.py   PCAP -> dns_queries and domain_summary in SQLite
-detector.py                Four-rule domain scoring and CLI
-dashboard_server.py        Localhost API, upload pipeline, and HTML server
-web/                       Standalone HTML, CSS, JavaScript, favicon
+dns_feature_extractor.py   Stable PCAP -> SQLite CLI
+detector.py                Stable four-rule scoring CLI
+dashboard_server.py        Stable localhost dashboard CLI
+pcap_sqlite/               Python implementations and shared project paths
+web/index.html             Standalone dashboard page
+web/assets/                CSS, JavaScript, favicon
 data/normal.pcap            Required general DNS comparison capture
 data/tunneling.pcap         Required source-labeled DNSCAT C2 capture
 data/additional/            Eight comparison PCAPs with documented provenance
@@ -19,10 +21,11 @@ output/tunneling.db         SQLite analysis of the primary tunnel capture
 output/additional/          SQLite analyses of the extra captures
 output/uploads/             SQLite analyses of local uploads (ignored by Git)
 docs/screenshots/           Dashboard image embedded in the report
+.codex/                    Project brief and verified handoff
 report.md                  Course report
 ```
 
-The ten bundled PCAPs, SQLite databases, report image, and application code are included in this repository. The local `.venv/` and portable TShark copy are excluded; install TShark separately after cloning. Third-party capture provenance is in [data/SOURCES.md](data/SOURCES.md).
+The ten bundled PCAPs, SQLite databases, report image, and application code are included in this repository. The root Python scripts remain the course CLI commands; their implementation is organized in `pcap_sqlite/`. The local `.venv/` and portable TShark copy are excluded; install TShark separately after cloning. Third-party capture provenance is in [data/SOURCES.md](data/SOURCES.md). Current project instructions and verified state are in [.codex/prompt.md](.codex/prompt.md) and [.codex/handoff.md](.codex/handoff.md).
 
 ```mermaid
 flowchart LR
@@ -116,8 +119,8 @@ The scenario labels come from their source repositories, not the detector. The W
 
 ```powershell
 python -m unittest discover -s tests -v
-node --check web/app.js
+node --check web/assets/app.js
 python -m py_compile dns_feature_extractor.py detector.py dashboard_server.py
 ```
 
-The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>&threshold=<1..4>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. The analysis endpoint also accepts optional `avg_entropy`, `max_entropy`, `query_count`, `txt_null_ratio` (fraction from 0 to 1), and `avg_query_len` parameters. Omitting them uses the constants in `detector.py`; omitting `threshold` uses 2. The analysis response supplies rule values, score range, domain scores, and server-calculated flags. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server only serves the allowlisted files in `web/`.
+The dashboard uses a localhost-only API: `GET /api/health`, `GET /api/databases`, `GET /api/analysis?db=<id>&threshold=<1..4>`, and `POST /api/upload` with raw PCAP bytes plus a URL-encoded `X-Filename` header. The analysis endpoint also accepts optional `avg_entropy`, `max_entropy`, `query_count`, `txt_null_ratio` (fraction from 0 to 1), and `avg_query_len` parameters. Omitting them uses the constants in `pcap_sqlite/detector.py`; omitting `threshold` uses 2. The analysis response supplies rule values, score range, domain scores, and server-calculated flags. Invalid requests return JSON with `error` and `code`. There is no user login because the server is bound to `127.0.0.1`; do not expose it on a public interface. The server serves only `/`, `/index.html`, and the allowlisted `/assets/` files under `web/`.

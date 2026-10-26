@@ -1,5 +1,7 @@
 # Phase log — local-only improvement
 
+This is a historical record of the earlier overhaul. Paths mentioned in its original phase entries refer to the layout at that time. The current layout and commands are in the root `README.md` and `.codex/handoff.md`.
+
 ## Phase 0 — audit
 
 - **Changed:** `docs/AUDIT.md` maps `dns_feature_extractor.py`, `detector.py`, `dashboard_server.py`, `web/`, capture provenance, and the existing report. It ranks Windows DB locking, API error exposure, no upload flow, small comparison data, UI states, and tests.

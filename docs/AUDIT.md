@@ -1,5 +1,7 @@
 # Baseline audit — 2026-10-26
 
+This audit describes the layout and issues observed before the later folder restructure. For current paths and commands, use the root `README.md` and `.codex/handoff.md`.
+
 ## Architecture map
 
 `data/*.pcap` → `dns_feature_extractor.py` (PyShark / TShark, features and aggregation) → `output/*.db` (`dns_queries`, `domain_summary`) → `detector.py` (four rule points) → `dashboard_server.py` (localhost JSON API) → `web/index.html`, `web/styles.css`, `web/app.js` (Overview and Domain Detail). `data/SOURCES.md` owns capture provenance; `report.md` is the course report.

@@ -1,8 +1,10 @@
-# Final report — local DNS tunneling detector overhaul
+# Final report — DNS tunneling detector overhaul
+
+The current repository layout is documented in the root [`README.md`](../README.md). The original CLI commands still work; their implementations now live in `pcap_sqlite/`, static files in `web/assets/`, and project instructions in `.codex/`. The feature work was subsequently integrated into `main`, and the feature branch was deleted.
 
 ## What is ready
 
-The four-day course project remains a rule-based **real PCAP → PyShark/TShark → SQLite → detector → two-tab dashboard** pipeline. Ten public captures and ten generated SQLite databases are bundled. The mandatory `dns_queries` and `domain_summary` tables, four fixed scoring rules, and original root capture/database paths are preserved. A user can upload a PCAP in the local dashboard; the server extracts it through the same backend, saves both tables, and opens the result. The dashboard keeps Overview and Domain Detail, with ranked domains, rule evidence, a query trace, type mix, and timeline.
+The four-day course project remains a rule-based **real PCAP → PyShark/TShark → SQLite → detector → two-tab dashboard** pipeline. Ten public captures and ten generated SQLite databases are bundled. The mandatory `dns_queries` and `domain_summary` tables, four default scoring rules, and original root capture/database paths are preserved. The dashboard can apply different cutoffs to a view without rewriting SQLite evidence. A user can upload a PCAP in the local dashboard; the server extracts it through the same backend, saves both tables, and opens the result. The dashboard keeps Overview and Domain Detail, with ranked domains, rule evidence, a query trace, type mix, and timeline.
 
 ## Before and after
 
@@ -19,7 +21,7 @@ The four-day course project remains a rule-based **real PCAP → PyShark/TShark 
 
 - All ten bundled PCAPs were re-extracted with a verified project-local TShark 4.4.19. All ten SQLite files passed `PRAGMA integrity_check = ok`, contained both required tables, and contained timestamp/domain-time indexes. The three added captures had matching TShark and SQLite query counts: 3,029, 376, and 457.
 - The default main tunnel has 438 queries, one domain, and `example.attack` at 4/4. The stronger normal comparison has 3,029 queries, 112 domains, and zero flags at the default threshold. The revised entropy rule flags the 12-query iodine sample at 2/4. DNS2TCP KEY flags `example.attack` at 2/4. DNS2TCP TXT flags `example.attack` and `powerdns.com` at 3/4; the latter is explicitly shown as unverified.
-- `python -m unittest discover -s tests -v` passed six tests, including a real PCAP upload and readback. `node --check web/app.js`, Python `py_compile`, `pip check`, and `git diff --check` passed. Coverage was 71% over the three Python application modules; CLI branches were exercised by commands but are not counted by unittest coverage.
+- The earlier overhaul passed six tests, including a real PCAP upload and readback. The current layout adds a seventh path/link test; `python -m unittest discover -s tests -v` passes all seven. `node --check web/assets/app.js`, Python `py_compile`, and `git diff --check` pass. The earlier 71% coverage measurement applies to the pre-restructure code layout; it was not rerun here.
 - In-app browser upload of `data/normal.pcap` saved and displayed 19 queries/7 domains. Headless Chrome verified server-backed threshold changes, keyboard tab navigation, Enter on a domain, mobile drawer Escape focus return, and zero page overflow at 360, 768, 1280, and 1920 px. The final browser pass had zero console/page errors. The report image at `docs/screenshots/dashboard_overview.png` was refreshed and visually inspected.
 - The local `pip-audit --local` first reported a known vulnerability for `pip 26.1.2`; upgrading only the ignored `.venv` to `pip 26.2.2` made the rerun report no known vulnerabilities. `coverage` and `pip-audit` were local verification tools only; no runtime dependency was added.
 - A fresh project-local environment under ignored `.task1/clean-venv` installed `requirements.txt`, passed `pip check` and all six tests, and extracted the real `normal.pcap` to `.task1/clean-check.db` (19 queries/7 domains). The final server at `http://127.0.0.1:8501/` returned health `ok`, ten bundled databases plus one local test upload, and `tshark_available=true`. Only port 8501 remained listening.
@@ -57,8 +59,8 @@ python dns_feature_extractor.py --pcap data/normal.pcap --db output/normal.db
 python dns_feature_extractor.py --pcap data/tunneling.pcap --db output/tunneling.db
 python detector.py --db output/tunneling.db --known-malicious example.attack
 python -m unittest discover -s tests -v
-node --check web/app.js
+node --check web/assets/app.js
 python dashboard_server.py --port 8501
 ```
 
-Open `http://127.0.0.1:8501/`, choose a bundled database or upload a local PCAP, and inspect both tabs. The server listens only on `127.0.0.1`. See `README.md` for all added capture commands and API details, `data/SOURCES.md` for provenance, `docs/PHASE_LOG.md` for phase-by-phase checks, and `handoff.md` for the latest verified state. All work is on the local `improve/full-overhaul` branch; nothing was pushed.
+Open `http://127.0.0.1:8501/`, choose a bundled database or upload a local PCAP, and inspect both tabs. The server listens only on `127.0.0.1`. See the root [`README.md`](../README.md) for capture commands and API details, [`data/SOURCES.md`](../data/SOURCES.md) for provenance, [`PHASE_LOG.md`](PHASE_LOG.md) for earlier phase checks, and [`.codex/handoff.md`](../.codex/handoff.md) for the latest verified state. Current work is on `main`.

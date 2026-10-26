@@ -9,9 +9,9 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from unittest.mock import patch
 
-import dashboard_server
-from dashboard_server import DashboardHandler, ROOT, analysis_payload
-from detector import RuleThresholds
+from pcap_sqlite import dashboard_server
+from pcap_sqlite.dashboard_server import DashboardHandler, ROOT, analysis_payload
+from pcap_sqlite.detector import RuleThresholds
 
 
 class DashboardTests(unittest.TestCase):
@@ -64,6 +64,10 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
             with urlopen(f"{base}/api/analysis?db=normal") as response:
                 self.assertEqual(json.load(response)["query_count"], 19)
+            for route in ("/", "/index.html", "/assets/styles.css", "/assets/app.js", "/assets/favicon.svg"):
+                with urlopen(f"{base}{route}") as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertTrue(response.read())
             with urlopen(f"{base}/api/analysis?db=tunneling&threshold=4") as response:
                 payload = json.load(response)
                 self.assertEqual((payload["flag_threshold"], payload["flagged_count"]), (4, 1))
@@ -90,10 +94,11 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 400)
             self.assertEqual(json.load(error.exception)["code"], "invalid_database")
             error.exception.close()
-            with self.assertRaises(HTTPError) as error:
-                urlopen(f"{base}/handoff.md")
-            self.assertEqual(error.exception.code, 404)
-            error.exception.close()
+            for route in ("/handoff.md", "/.codex/handoff.md", "/styles.css", "/assets/../index.html"):
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(f"{base}{route}")
+                self.assertEqual(error.exception.code, 404)
+                error.exception.close()
             request = Request(f"{base}/api/databases", headers={"Host": "not-local.example"})
             with self.assertRaises(HTTPError) as error:
                 urlopen(request)

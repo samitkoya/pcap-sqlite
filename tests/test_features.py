@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from detector import score_domains
-import dns_feature_extractor
-from dns_feature_extractor import aggregate_by_domain, shannon_entropy, split_domain
+from pcap_sqlite.detector import score_domains
+from pcap_sqlite import dns_feature_extractor
+from pcap_sqlite.dns_feature_extractor import aggregate_by_domain, shannon_entropy, split_domain
 
 
 class FeatureTests(unittest.TestCase):

@@ -1,4 +1,11 @@
-# Local overhaul changelog
+# Project changelog
+
+## 2026-10-26: project layout and route cleanup
+
+- Moved the project brief and handoff to `.codex/`, Python implementations to `pcap_sqlite/`, and static files to `web/assets/`. Kept the original root Python CLI commands and the real capture/SQLite paths.
+- Updated the HTML asset URLs and server static allowlist to `/assets/`; API routes and the two-tab dashboard remain available at the original localhost address.
+- Updated active README and agent instructions. Added tests for static routes, private-file 404 responses, and local Markdown links.
+- The feature work was previously integrated into `main`, and its branch was deleted at the user's request.
 
 ## 2026-10-26: short tunnel scoring and explicit domain evidence
 

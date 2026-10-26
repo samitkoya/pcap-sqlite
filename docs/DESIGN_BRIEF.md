@@ -21,7 +21,7 @@ Navigation is shallow: first a ranked overview, then a selected domain and its e
 
 ## Implemented system
 
-- Neutral dark surfaces and text are defined in `web/styles.css` as CSS variables; blue is the only non-semantic accent. Red/amber/green signal review status or operation feedback.
+- Dark and light maroon surfaces and text are defined in `web/assets/styles.css` as CSS variables. Red and green distinguish review status and operation feedback.
 - Inter/system sans handles content and controls; Consolas/system monospace handles packet-like data. This is two font families at most, with system fallbacks.
 - Spacing follows a 4/8 px base, with 6–8 px corners and one-pixel borders. Shadows are reserved for the mobile drawer. Motion is limited to its short reveal and respects reduced-motion settings.
 - The reusable families are native buttons, labeled inputs/selects, accessible tabs, summary metrics, tables, rule results, query trace rows, and message states. A modal/toast/skeleton is not added because no workflow uses one; loading and errors are visible inline.
