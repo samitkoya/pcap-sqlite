@@ -26,6 +26,15 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(tunnel["domains"][0]["review_tone"], "high")
         self.assertEqual(analysis_payload("tunneling", 4)["flag_threshold"], 4)
         self.assertEqual(analysis_payload("normal", 1)["flagged_count"], 0)
+        iodine = analysis_payload("iodine")
+        self.assertEqual(iodine["domains"][0]["suspicion_score"], 2)
+        self.assertTrue(iodine["domains"][0]["flagged"])
+        self.assertTrue(iodine["domains"][0]["rule_hits"]["avg_entropy"])
+        self.assertIn("Unverified", iodine["domains"][0]["evidence_label"])
+        powerdns = next(domain for domain in analysis_payload("dns2tcp-txt")["domains"]
+                        if domain["base_domain"] == "powerdns.com")
+        self.assertTrue(powerdns["flagged"])
+        self.assertIn("Unverified", powerdns["evidence_label"])
 
     def test_http_contract(self):
         server = ThreadingHTTPServer(("127.0.0.1", 0), DashboardHandler)

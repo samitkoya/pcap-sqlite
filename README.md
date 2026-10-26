@@ -89,7 +89,7 @@ python dns_feature_extractor.py --pcap data/additional/korving_dns2tcp_key.pcap 
 python dns_feature_extractor.py --pcap data/additional/korving_dns2tcp_txt.pcap --db output/additional/korving_dns2tcp_txt.db
 ```
 
-Each run stores one row per DNS **query** in `dns_queries` and one summary per base domain in `domain_summary`. The detector awards one point each for average subdomain entropy > 3.5, query count > 20, TXT/NULL ratio > 0.3, and average query length > 50. A score of at least 2 is flagged for review. Its base-domain splitter uses the last two labels, so names under multi-part public suffixes may be grouped incorrectly.
+Each run stores one row per DNS **query** in `dns_queries` and one summary per base domain in `domain_summary`. The detector awards four possible points: entropy (average > 3.5, or maximum > 4.5 with TXT/NULL ratio > 0.3), query count > 20, TXT/NULL ratio > 0.3, and average query length > 50. A score of at least 2 is flagged for review. Its base-domain splitter uses the last two labels, so names under multi-part public suffixes may be grouped incorrectly. The CLI accepts repeatable `--known-malicious` and `--known-benign` labels; flagged domains without either label are reported as unverified, not false positives.
 
 ## Observed results
 
@@ -100,13 +100,13 @@ Each run stores one row per DNS **query** in `dns_queries` and one summary per b
 | dns2tcp | 22 | 1 | `hsc.fr` 4/4 | Yes |
 | dnscat2 short sample | 12 | 1 | `biillpi.com` 2/4 | Yes |
 | DNSExfiltrator | 14 | 1 | `hsc.fr` 3/4 | Yes |
-| iodine | 12 | 1 | `biillpi.com` 1/4 | **No** |
+| iodine | 12 | 1 | `biillpi.com` 2/4 | Yes |
 | sods | 493 | 1 | `hsc.fr` 4/4 | Yes |
 | CTU normal DNS | 3,029 | 112 | Highest 1/4 | No |
 | DNS2TCP KEY scenario | 376 | 2 | `example.attack` 2/4 | Yes |
-| DNS2TCP TXT scenario | 457 | 4 | `example.attack` 2/4; `powerdns.com` 3/4 | Both flagged |
+| DNS2TCP TXT scenario | 457 | 4 | `example.attack` 3/4; `powerdns.com` 3/4 | Both flagged; `powerdns.com` unverified |
 
-The scenario labels come from their source repositories, not the detector. The Wireshark sample is not independently labeled benign. The CTU dataset has a source-level normal description, but not per-domain benign labels. These captures do not establish a general accuracy or false-positive rate. The iodine miss illustrates a low-volume limitation; `powerdns.com` in the TXT scenario is an unresolved classification concern. See [report.md](report.md) for the course explanation and [data/SOURCES.md](data/SOURCES.md) for original download links and hashes.
+The scenario labels come from their source repositories, not the detector. The Wireshark sample is not independently labeled benign. The CTU dataset has a source-level normal description, but not per-domain benign labels. These captures do not establish a general accuracy or false-positive rate. The revised entropy rule catches this iodine example; it is not evidence of general recall. The dashboard marks `powerdns.com` as unverified despite its flag. See [report.md](report.md) for the course explanation and [data/SOURCES.md](data/SOURCES.md) for original download links and hashes.
 
 ## Checks and local API
 

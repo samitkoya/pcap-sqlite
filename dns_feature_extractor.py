@@ -67,16 +67,16 @@ def parse_pcap(filepath: str, tshark_path: str | None = None) -> pd.DataFrame:
     resolved_tshark = resolve_tshark_path(tshark_path)
     if not resolved_tshark or not Path(resolved_tshark).is_file():
         raise FileNotFoundError("TShark is unavailable; install it, set TSHARK_PATH, or pass --tshark")
-    # Python 3.14 no longer creates a default event loop automatically.
+    # Supplying a loop avoids PyShark 0.6's deprecated event-loop policy lookup.
+    eventloop = asyncio.new_event_loop()
     try:
-        asyncio.get_event_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
-
-    capture = pyshark.FileCapture(
-        filepath, display_filter="dns", tshark_path=resolved_tshark,
-        keep_packets=False,
-    )
+        capture = pyshark.FileCapture(
+            filepath, display_filter="dns", tshark_path=resolved_tshark,
+            keep_packets=False, eventloop=eventloop,
+        )
+    except BaseException:
+        eventloop.close()
+        raise
     rows = []
     skipped_malformed = 0
     try:
@@ -102,7 +102,10 @@ def parse_pcap(filepath: str, tshark_path: str | None = None) -> pd.DataFrame:
                 skipped_malformed += 1
                 continue
     finally:
-        capture.close()
+        try:
+            capture.close()
+        finally:
+            eventloop.close()
     if skipped_malformed:
         LOG.warning("Skipped %d malformed DNS packets in %s", skipped_malformed, filepath)
     return pd.DataFrame(rows, columns=RAW_COLUMNS)

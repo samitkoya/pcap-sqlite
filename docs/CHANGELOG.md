@@ -1,5 +1,11 @@
 # Local overhaul changelog
 
+## 2026-10-26: short tunnel scoring and explicit domain evidence
+
+- Expanded the entropy point to accept either average entropy > 3.5, or maximum entropy > 4.5 paired with TXT/NULL ratio > 0.3. The default score threshold and 0–4 range stay the same. The 12-query iodine capture now scores 2/4; both bundled normal comparisons still have zero flags at the default threshold.
+- Added domain evidence labels to the dashboard. The iodine domain and flagged `powerdns.com` are shown as unverified at domain level; the latter's query name matches PowerDNS's documented security polling. Detector evaluation counts false positives only when independently supplied benign labels exist and reports other flags as unverified.
+- Passed PyShark an explicit event loop and closed it after extraction, removing the observed Python 3.14 deprecation and resource warnings. The iodine result was used to tune this rule and does not constitute independent validation.
+
 ## 2026-10-26
 
 - Preserved the approved PyShark/TShark → SQLite → four-rule detector → two-tab dashboard workflow. Added one source-described normal DNS capture and two DNS2TCP scenarios. Source URLs, hashes, observed counts, and label limits are in `data/SOURCES.md`.

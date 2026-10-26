@@ -34,8 +34,16 @@ class FeatureTests(unittest.TestCase):
         self.assertEqual(score_domains(summary).loc[0, "suspicion_score"], 1)
 
         boundary = pd.DataFrame([{"base_domain": "boundary.test", "avg_entropy": 3.5,
+                                  "max_entropy": 4.5,
                                   "query_count": 20, "txt_null_ratio": 0.3, "avg_query_len": 50}])
         self.assertEqual(score_domains(boundary).loc[0, "suspicion_score"], 0)
+        boundary.loc[0, "max_entropy"] = 4.51
+        self.assertEqual(score_domains(boundary).loc[0, "suspicion_score"], 0)
+        boundary.loc[0, "txt_null_ratio"] = 0.31
+        self.assertEqual(score_domains(boundary).loc[0, "suspicion_score"], 2)
+        boundary.loc[0, "txt_null_ratio"] = 0.3
+        self.assertEqual(score_domains(boundary).loc[0, "suspicion_score"], 0)
+        boundary.loc[0, "max_entropy"] = 4.5
         boundary.loc[0, "avg_entropy"] = 3.51
         boundary.loc[0, "query_count"] = 21
         self.assertEqual(score_domains(boundary).loc[0, "suspicion_score"], 2)

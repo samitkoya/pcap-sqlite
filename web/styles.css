@@ -137,7 +137,7 @@ h1 { margin: 0; font-size: clamp(31px, 3vw, 42px); line-height: 1.1; letter-spac
 .data-table tr:last-child td { border-bottom: 0; }
 .data-table td { font-size: 11px; color: var(--ink); white-space: nowrap; }
 .data-table th:not(:first-child), .data-table td:not(:first-child) { text-align: right; }
-.data-table th:nth-child(3), .data-table td:nth-child(3) { text-align: left; }
+.data-table th:nth-child(3), .data-table td:nth-child(3), .data-table th:nth-child(4), .data-table td:nth-child(4) { text-align: left; }
 .data-table tbody tr { transition: background .14s ease; }
 .data-table tbody tr[data-domain]:hover { background: var(--panel-hover); cursor: pointer; }
 .domain-link { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 650; text-align: left; }

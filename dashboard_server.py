@@ -17,10 +17,12 @@ from dns_feature_extractor import aggregate_by_domain, parse_pcap, resolve_tshar
 
 from detector import (
     ENTROPY_THRESHOLD,
+    MAX_ENTROPY_THRESHOLD,
     FLAG_SCORE_THRESHOLD,
     QUERY_COUNT_THRESHOLD,
     QUERY_LENGTH_THRESHOLD,
     TXT_NULL_RATIO_THRESHOLD,
+    entropy_rule_hit,
     score_domains,
 )
 
@@ -45,7 +47,7 @@ SOURCE_NOTES = {
     "dns2tcp": "Source-labeled dns2tcp tool capture from dmachard's public sample repository.",
     "dnscat2": "Source-labeled dnscat2 tool capture from dmachard's public sample repository.",
     "dnsextrator": "Source-labeled DNSExfiltrator tool capture from dmachard's public sample repository.",
-    "iodine": "Source-labeled iodine tool capture. Its score is below the default threshold.",
+    "iodine": "Source-labeled iodine tool capture. Short NULL-query activity is flagged for review.",
     "sods": "Source-labeled sods tool capture from dmachard's public sample repository.",
     "ctu-normal-4": "Stratosphere normal-activity DNS-only capture. Source-level description, not per-domain benign labels.",
     "dns2tcp-key": "Korving-F simulated DNS2TCP scenario using KEY requests; scenario identifies example.attack.",
@@ -59,11 +61,21 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 PCAP_MAGIC = {b"\xd4\xc3\xb2\xa1", b"\xa1\xb2\xc3\xd4", b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d", b"\x0a\x0d\x0d\x0a"}
 RULE_THRESHOLDS = {
     "avg_entropy": ENTROPY_THRESHOLD,
+    "max_entropy": MAX_ENTROPY_THRESHOLD,
     "query_count": QUERY_COUNT_THRESHOLD,
     "txt_null_ratio": TXT_NULL_RATIO_THRESHOLD,
     "avg_query_len": QUERY_LENGTH_THRESHOLD,
 }
-MAX_SCORE = len(RULE_THRESHOLDS)
+MAX_SCORE = 4
+
+# These are source-backed scenario labels, not labels inferred from scores.
+DOMAIN_EVIDENCE = {
+    ("tunneling", "example.attack"): "Source-described tunnel domain",
+    ("dns2tcp-key", "example.attack"): "Source-described tunnel domain",
+    ("dns2tcp-txt", "example.attack"): "Source-described tunnel domain",
+    ("dns2tcp-txt", "powerdns.com"): "Unverified; matches documented PowerDNS security polling",
+    ("iodine", "biillpi.com"): "Unverified domain label; source identifies iodine capture",
+}
 
 
 def available_databases() -> dict[str, tuple[Path, str, str]]:
@@ -114,8 +126,9 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
         ).fetchall()
 
     scored = score_domains(summary)
+    entropy_hits = entropy_rule_hit(scored)
     domains = []
-    for row in scored.itertuples(index=False):
+    for row, entropy_hit in zip(scored.itertuples(index=False), entropy_hits):
         domains.append({
             "base_domain": str(row.base_domain),
             "query_count": int(row.query_count),
@@ -125,11 +138,12 @@ def analysis_payload(database_id: str, flag_threshold: int = FLAG_SCORE_THRESHOL
             "avg_query_len": float(row.avg_query_len),
             "txt_null_ratio": float(row.txt_null_ratio),
             "suspicion_score": int(row.suspicion_score),
+            "evidence_label": DOMAIN_EVIDENCE.get((database_id, str(row.base_domain)), "No independent domain label"),
             "flagged": bool(row.suspicion_score >= flag_threshold),
             "review_tone": ("high" if row.suspicion_score >= min(MAX_SCORE, FLAG_SCORE_THRESHOLD + 1)
                             else "medium") if row.suspicion_score >= flag_threshold else "none",
             "rule_hits": {
-                "avg_entropy": bool(row.avg_entropy > ENTROPY_THRESHOLD),
+                "avg_entropy": bool(entropy_hit),
                 "query_count": bool(row.query_count > QUERY_COUNT_THRESHOLD),
                 "txt_null_ratio": bool(row.txt_null_ratio > TXT_NULL_RATIO_THRESHOLD),
                 "avg_query_len": bool(row.avg_query_len > QUERY_LENGTH_THRESHOLD),

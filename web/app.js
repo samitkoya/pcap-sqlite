@@ -55,7 +55,7 @@ function renderThresholdControls() {
 
   const rules = analysis.rules;
   const definitions = [
-    ["Average entropy", `> ${rules.avg_entropy}`],
+    ["Entropy", `avg > ${rules.avg_entropy} or max > ${rules.max_entropy} with TXT/NULL > ${Math.round(rules.txt_null_ratio * 100)}%`],
     ["Query count", `> ${rules.query_count}`],
     ["TXT / NULL ratio", `> ${Math.round(rules.txt_null_ratio * 100)}%`],
     ["Average query length", `> ${rules.avg_query_len}`],
@@ -133,6 +133,7 @@ function renderRanking() {
       domain.base_domain,
       `${domain.suspicion_score} / ${state.analysis.max_score}`,
       flagged ? "Flagged" : "Below threshold",
+      domain.evidence_label,
       number(domain.query_count),
       decimal(domain.avg_entropy),
       decimal(domain.max_entropy),
@@ -191,7 +192,7 @@ function renderEntropyChart() {
 function renderRules(domain) {
   const rules = state.analysis.rules;
   const definitions = [
-    ["Average entropy", decimal(domain.avg_entropy), `> ${rules.avg_entropy}`, domain.rule_hits.avg_entropy],
+    ["Entropy", `avg ${decimal(domain.avg_entropy)} / max ${decimal(domain.max_entropy)}`, `avg > ${rules.avg_entropy} or max > ${rules.max_entropy} with TXT/NULL > ${Math.round(rules.txt_null_ratio * 100)}%`, domain.rule_hits.avg_entropy],
     ["Query count", number(domain.query_count), `> ${rules.query_count}`, domain.rule_hits.query_count],
     ["TXT / NULL ratio", percent(domain.txt_null_ratio), `> ${Math.round(rules.txt_null_ratio * 100)}%`, domain.rule_hits.txt_null_ratio],
     ["Average query length", decimal(domain.avg_query_len, 1), `> ${rules.avg_query_len}`, domain.rule_hits.avg_query_len],
@@ -238,7 +239,7 @@ function renderTraceDomainContext(domain) {
 
   const rules = state.analysis.rules;
   const items = [
-    ["Avg. subdomain entropy", `${decimal(domain.avg_entropy)} bits`, `rule > ${rules.avg_entropy}`, domain.rule_hits.avg_entropy],
+    ["Subdomain entropy", `avg ${decimal(domain.avg_entropy)} / max ${decimal(domain.max_entropy)} bits`, `avg > ${rules.avg_entropy} or max > ${rules.max_entropy} with TXT/NULL > ${Math.round(rules.txt_null_ratio * 100)}%`, domain.rule_hits.avg_entropy],
     ["Query count", number(domain.query_count), `rule > ${rules.query_count}`, domain.rule_hits.query_count],
     ["TXT / NULL share", percent(domain.txt_null_ratio), `rule > ${Math.round(rules.txt_null_ratio * 100)}%`, domain.rule_hits.txt_null_ratio],
     ["Avg. query length", `${decimal(domain.avg_query_len, 1)} chars`, `rule > ${rules.avg_query_len}`, domain.rule_hits.avg_query_len],
@@ -426,7 +427,7 @@ function renderDetail() {
   const flagged = isFlagged(domain);
   $("detail-status").className = `detail-status ${flagged ? "is-risk" : "is-clear"}`;
   $("detail-status").textContent = `${flagged ? "Flagged for review" : "Below threshold"} · Score ${domain.suspicion_score} / ${state.analysis.max_score}`;
-  $("detail-meta").textContent = `Maximum entropy: ${decimal(domain.max_entropy)} · Unique query types: ${number(domain.unique_query_types)}`;
+  $("detail-meta").textContent = `Evidence: ${domain.evidence_label} · Maximum entropy: ${decimal(domain.max_entropy)} · Unique query types: ${number(domain.unique_query_types)}`;
   renderRules(domain);
   renderQueryTrace(domain);
   renderQueryMix(domain);

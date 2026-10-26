@@ -18,7 +18,7 @@ The four-day course project remains a rule-based **real PCAP → PyShark/TShark 
 ## Verification evidence
 
 - All ten bundled PCAPs were re-extracted with a verified project-local TShark 4.4.19. All ten SQLite files passed `PRAGMA integrity_check = ok`, contained both required tables, and contained timestamp/domain-time indexes. The three added captures had matching TShark and SQLite query counts: 3,029, 376, and 457.
-- The default main tunnel still has 438 queries, one domain, and `example.attack` at 4/4. The stronger normal comparison has 3,029 queries, 112 domains, and zero flags at the default threshold. DNS2TCP KEY flags `example.attack` at 2/4. DNS2TCP TXT flags `example.attack` at 2/4 and `powerdns.com` at 3/4; the latter is an unresolved classification concern.
+- The default main tunnel has 438 queries, one domain, and `example.attack` at 4/4. The stronger normal comparison has 3,029 queries, 112 domains, and zero flags at the default threshold. The revised entropy rule flags the 12-query iodine sample at 2/4. DNS2TCP KEY flags `example.attack` at 2/4. DNS2TCP TXT flags `example.attack` and `powerdns.com` at 3/4; the latter is explicitly shown as unverified.
 - `python -m unittest discover -s tests -v` passed six tests, including a real PCAP upload and readback. `node --check web/app.js`, Python `py_compile`, `pip check`, and `git diff --check` passed. Coverage was 71% over the three Python application modules; CLI branches were exercised by commands but are not counted by unittest coverage.
 - In-app browser upload of `data/normal.pcap` saved and displayed 19 queries/7 domains. Headless Chrome verified server-backed threshold changes, keyboard tab navigation, Enter on a domain, mobile drawer Escape focus return, and zero page overflow at 360, 768, 1280, and 1920 px. The final browser pass had zero console/page errors. The report image at `docs/screenshots/dashboard_overview.png` was refreshed and visually inspected.
 - The local `pip-audit --local` first reported a known vulnerability for `pip 26.1.2`; upgrading only the ignored `.venv` to `pip 26.2.2` made the rerun report no known vulnerabilities. `coverage` and `pip-audit` were local verification tools only; no runtime dependency was added.
@@ -28,10 +28,10 @@ No baseline API timing or Lighthouse run was available, so a before/after speedu
 
 ## Known issues and limits
 
-1. **Truth labels:** The CTU capture has a source-level normal-activity description, not per-domain labels. `powerdns.com` in the DNS2TCP TXT scenario needs packet-level investigation. The current selected data cannot establish general precision, recall, or a false-positive rate. The short source-labeled iodine tunnel remains a 1/4 miss.
+1. **Truth labels and rule tuning:** The CTU capture has a source-level normal-activity description, not per-domain labels. The three `powerdns.com` TXT queries match PowerDNS's documented security-status polling pattern, but the capture still has no independent domain-level label. The revised entropy rule was chosen after seeing the iodine miss, so the iodine result is not independent validation. The selected data cannot establish general precision, recall, or a false-positive rate.
 2. **Domain grouping:** The last-two-label splitter mishandles multi-part public suffixes. Query rows also lack source/destination IP and DNS transaction IDs, limiting duplicate and traffic-role analysis.
 3. **Scale:** The analysis API sends every query row and the frontend renders the selected domain trace. A large capture within the 25 MiB upload bound could be slow. Add pagination and a parse timeout before treating this as a production multi-user service.
-4. **Tooling:** TShark is required for fresh extraction and is not committed. The local portable copy lives in ignored `.task1/`. PyShark 0.6 emits a Python 3.14 event-loop deprecation warning but completed the verified captures.
+4. **Tooling:** TShark is required for fresh extraction and is not committed. The local portable copy lives in ignored `.task1/`. The extractor now passes an explicitly owned event loop to PyShark 0.6 and closes it after parsing; the iodine capture re-extracted under Python 3.14 with `-W default` without the earlier warning.
 5. **Atomicity:** Browser uploads write a temporary SQLite DB before rename. Direct CLI `save_to_sqlite` uses pandas `to_sql` and can leave a partial destination if writing fails halfway; a future revision could give the CLI the same temporary-file strategy.
 6. **Review scope:** The app is loopback-only with no authentication, rate limiter, or public-service deployment design. Browser-native select menus may look different across operating systems. No Lighthouse score or large-capture benchmark was obtained.
 7. **Ignored QA residue:** Automatic command review rejected removal of one 12 KB partial database left by the initially failed Windows upload test under `.task1/tmpnbf3bdxw`. It is ignored by Git, is not exposed by the server, and does not affect the delivered app.
@@ -39,7 +39,7 @@ No baseline API timing or Lighthouse run was available, so a before/after speedu
 ## Prioritized backlog
 
 1. Add packet identity, client/server addresses, DNS transaction IDs, and a documented deduplication analysis while preserving current table columns through a migration.
-2. Acquire independently labeled per-domain comparison data and validate flagged domains with manual packet evidence before changing thresholds.
+2. Acquire independently labeled per-domain comparison data and validate flagged domains with manual packet evidence before interpreting the tuned rule as general performance.
 3. Paginate query reads and render a bounded trace for larger captures; add upload processing timeouts and cancellation.
 4. Improve base-domain extraction with a public suffix list only if the extra dependency is justified for the course scope.
 
